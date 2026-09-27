@@ -1,0 +1,12 @@
+id,label,group,plip_tag,eval_out,n,heavy_mean,plip_n_hbond,plip_n_hydrophobic,plip_n_pistack,plip_n_saltbridge,plip_n_halogen,plip_n_waterbridge,plip_total,plip_per_heavy,prolif_HBAcceptor,prolif_HBDonor,prolif_Hydrophobic,prolif_VdWContact,prolif_total,prolif_per_heavy
+reference,Reference (native),ref,NATIVE,native,100,22.75,3.92,3.6,0.29,0.63,0.01,0.0,8.45,0.3924,2.07,0.51,0.73,8.87,12.18,0.5826
+ours_vina,Ours (Vina+Guide),ours,vina_fixed_best,vina_fixed,8101,24.2328,4.0675,6.977,0.2731,0.3893,0.0418,0.0,11.7488,0.5043,1.9668,0.8077,1.7011,10.2984,14.774,0.6461
+novdw,Ours (Guide Only),abl,novdw,novdw,1925,23.8514,3.7839,5.5673,0.2145,0.2919,0.0623,0.0,9.92,0.434,1.6135,0.7584,1.359,9.6369,13.3678,0.593
+targetdiff,TargetDiff,ext,targetdiff,targetdiff,8954,24.138,4.0905,4.7971,0.2459,0.4707,0.039,0.0,9.6432,0.4166,1.7053,0.7255,1.2228,10.257,13.9105,0.6094
+kgdiff,KGDiff,ext,kgdiff,kgdiff,8280,24.0118,3.494,5.9935,0.2105,0.3331,0.0552,0.0,10.0862,0.4369,1.5977,0.6419,1.4734,9.8457,13.5587,0.5943
+pidiff_retrain,PIDiff (retrained),ext,pidiff_retrain,pidiff_retrain,8476,23.913,3.3207,4.2494,0.1915,0.443,0.0217,0.0,8.2263,0.3601,1.1305,0.3459,1.074,7.9677,10.5181,0.4691
+ipdiff,IPDiff,ext,ipdiff,ipdiff,8705,23.8249,2.7443,6.2077,0.2577,0.2905,0.0116,0.0,9.5118,0.4132,1.192,0.4601,1.5075,9.7559,12.9155,0.5677
+ours_noguide,Ours (Vina Only),ng,vina_fixed_best_noguide,vina_fixed_best_noguide,2111,23.6092,4.1151,5.9143,0.1573,0.5211,0.0436,0.0,10.7513,0.4689,2.0137,0.8787,1.4278,10.0677,14.388,0.6452
+pocket2mol,Pocket2Mol,ext,pocket2mol,pocket2mol,9802,17.696,2.3652,3.5118,0.3966,0.3044,0.0167,0.0,6.5948,0.4034,0.9871,0.3632,0.8862,7.0336,9.2701,0.5766
+molcraft,MolCRAFT,ext,molcraft,molcraft,9657,22.6978,4.0386,4.4787,0.4199,0.6371,0.033,0.0,9.6073,0.4529,1.9183,0.7813,0.9912,9.5589,13.2497,0.6372
+alidiff,AliDiff,baseline,alidiff,alidiff,8864,24.1134,2.6655,6.9086,0.1249,0.1933,0.0183,0.0,9.9105,0.4269,1.1946,0.4447,1.7961,10.0149,13.4504,0.5835

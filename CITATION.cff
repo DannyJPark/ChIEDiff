@@ -1,0 +1,52 @@
+cff-version: 1.2.0
+message: If you use this software, please cite both the software and the paper.
+title: >-
+  ChIEDiff: chemistry-gated interaction-energy diffusion for structure-based
+  3D molecular generation
+abstract: >-
+  A pocket-conditioned 3D diffusion model that integrates a chemistry-gated,
+  Vina-derived intermolecular energy into training on predicted clean coordinates,
+  and steers sampling with a learned affinity-head gradient. Includes the evaluation
+  pipeline that regenerates every table in the accompanying manuscript.
+type: software
+license: MIT
+version: 1.0.0
+repository-code: https://github.com/<user>/ChIEDiff
+keywords:
+  - structure-based drug design
+  - 3D molecular generation
+  - diffusion models
+  - protein-ligand interactions
+  - physics-informed learning
+  - gradient-guided sampling
+
+authors:
+  - family-names: Park
+    given-names: Hyoungjoon
+    affiliation: Department of Computer Science, Yonsei University
+    email: ktori1361@yonsei.ac.kr
+  - family-names: Choi
+    given-names: Seungyeon
+    affiliation: Department of Computer Science, Yonsei University
+  - family-names: Kim
+    given-names: Hwanhee
+    affiliation: Department of Computer Science, Yonsei University
+  - family-names: Lee
+    given-names: Seungyong
+    affiliation: Department of Computer Science, Yonsei University
+  - family-names: Kim
+    given-names: Yoonju
+    affiliation: Department of Computer Science, Yonsei University
+  - family-names: Noh
+    given-names: Taeil
+    affiliation: Department of Computer Science, Yonsei University
+  - family-names: Lee
+    given-names: Minjae
+    affiliation: Department of Computer Science, Yonsei University
+  - family-names: Park
+    given-names: Sanghyun
+    affiliation: Department of Computer Science, Yonsei University
+    email: sanghyun@yonsei.ac.kr
+
+# The journal reference is filled in on acceptance, together with the archived DOI.
+# The software DOI and the data/weights DOI are both recorded in README.md section 2.
