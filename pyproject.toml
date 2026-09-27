@@ -55,7 +55,7 @@ name = "Sanghyun Park"
 email = "sanghyun@yonsei.ac.kr"
 
 [project.urls]
-Homepage = "https://github.com/<user>/ChIEDiff"
+Homepage = "https://github.com/DannyJPark/ChIEDiff"
 
 [tool.setuptools.packages.find]
 include = ["gated_energy_diffusion*"]

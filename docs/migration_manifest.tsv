@@ -26,9 +26,7 @@ utils/transforms.py	gated_energy_diffusion/utils/transforms.py	copy	featurisers 
 utils/vina_rules.py	gated_energy_diffusion/utils/vina_rules.py	copy	VINA_WEIGHT + 5 radial terms; rest pruned in 2.4	3899e1b5e4e62148acd774ad2a389f3de6bba662682432bca2fbfd31f8a05273
 utils/vina_types.py	gated_energy_diffusion/utils/vina_types.py	copy	Vina xs radii and hydrophobic/donor/acceptor flags	e2c71a96cdbc6eb24f7c458ae71ae64416ed63697f4f9448c2618cc363b2558c
 utils/warmup.py	gated_energy_diffusion/utils/warmup.py	copy	GradualWarmupScheduler, referenced by get_scheduler	5cbca33dc065c87c5217dc029b9cc6d892891e7c7788ff08944e1c76d85e22aa
-analysis/nci_benchmark/PREREGISTRATION.md	analysis/nci_benchmark/PREREGISTRATION.md	copy	recorded provenance	f0d38ac8c654b3f3b1cd2fcfd7c298b649761b38a6d564145a498f58c3637391
 analysis/nci_benchmark/env_versions.txt	analysis/nci_benchmark/env_versions.txt	copy	recorded provenance	90d9ede0037a7b9281335c5b7d0cbea75c220ef1befa16c52b40760e0ea10c08
-analysis/nci_benchmark/provenance.md	analysis/nci_benchmark/provenance.md	copy	recorded provenance	15ac6dfb3e4508dccf104af6077e1249a664fdb89449cd246621d83e74866bad
 analysis/nci_benchmark/test_pockets.json	analysis/nci_benchmark/test_pockets.json	copy	recorded provenance	71c8288fa4112c43efe1bbb3c9edf6b661123548a69a1bbffb617d7e4b9e97fd
 configs/offtarget_assignment_seed2027.json	configs/offtarget_assignment_seed2027.json	copy	off-target pocket assignment for the specificity tables	3a32c4fd293e0fdd5eac81a495c2e2485c8632c9b63791729854f965e512e185
 results/comparison/appendix/posebusters/pose_quality_summary_posebusters.csv	results/comparison/appendix/posebusters/pose_quality_summary_posebusters.csv	copy	aggregate input to the table pipeline	7b01744a8eb17202140ca19b4848e8e4af90c9e2f47c9e93edfdfd83a77a80c0
@@ -55,3 +53,5 @@ results/diagnostics/type_cf/type_cf/pocket3.csv	results/diagnostics/type_cf/type
 results/diagnostics/type_cf/type_cf/pocket4.csv	results/diagnostics/type_cf/type_cf/pocket4.csv	copy	aggregate input to the table pipeline	50982cf7e668445dffde0ffe945c120eee8d06d4b81a8b39e8367002e6f4b673
 results/pose_fidelity/master.csv	results/pose_fidelity/master.csv	copy	aggregate input to the table pipeline	2ac56a358dc7aa2367e625ef38828e3ffb360f8874620d08470f098fb4581446
 analysis/reorg/expected_rosters.json	scripts/fixtures/expected_rosters.json	copy	live fixture for check_rosters.py	8fc200f3afa684d5575bdf3b6b1cff8d26bc91eeb3535c4b774456ef2eef3110
+analysis/nci_benchmark/PREREGISTRATION.md	-	exclude	Korean internal document referencing files that are not shipped	-
+analysis/nci_benchmark/provenance.md	-	exclude	Korean internal document referencing files that are not shipped	-

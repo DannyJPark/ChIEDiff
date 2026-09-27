@@ -25,7 +25,7 @@ dual-head guidance, and the one-off diagnostic experiments are deliberately **no
 | Field | Value |
 |---|---|
 | **Project name** | ChIEDiff (provisional; package `gated_energy_diffusion`) |
-| **Project home page** | https://github.com/<user>/ChIEDiff |
+| **Project home page** | https://github.com/DannyJPark/ChIEDiff |
 | **Archived version** | DOI 10.5281/zenodo.XXXXXXX — code snapshot |
 | **Data & weights archive** | DOI 10.5281/zenodo.YYYYYYY — trained weights, generated samples, receptors |
 | **Operating system(s)** | Linux. Developed and tested on RHEL 9.4 (kernel 5.14.0). POSIX only; not tested on macOS or Windows |

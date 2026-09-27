@@ -11,7 +11,7 @@ abstract: >-
 type: software
 license: MIT
 version: 1.0.0
-repository-code: https://github.com/<user>/ChIEDiff
+repository-code: https://github.com/DannyJPark/ChIEDiff
 keywords:
   - structure-based drug design
   - 3D molecular generation

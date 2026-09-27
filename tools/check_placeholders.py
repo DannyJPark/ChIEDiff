@@ -54,7 +54,7 @@ TEXT_SUFFIXES = {
 def tracked_files() -> list[Path]:
     try:
         out = subprocess.run(
-            ["git", "-C", str(ROOT), "ls-files"],
+            ["git", "-C", str(ROOT), "ls-files", "-c", "-o", "--exclude-standard"],
             capture_output=True, text=True, check=True,
         ).stdout.split("\n")
         files = [ROOT / p for p in out if p]

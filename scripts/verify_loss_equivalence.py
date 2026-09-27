@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""Control A: the pruned model's loss and gradients must match the original bitwise.
+
+No randomness inside the comparison: one fixed batch, an explicit time_step (so
+sample_time() is never called), and a pre-drawn pocket-noise tensor, all replayed into both
+models. Otherwise the two would consume the RNG stream differently and a difference would
+be uninterpretable.
+
+Tolerance is exact equality. The deleted branches are unreachable under this configuration
+and the removed initialisers are conditionally called, so neither model consumes
+initialisation randomness the other does not. A nonzero difference is a real change --
+do not widen the tolerance.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+import torch
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("--reference-repo", required=True,
+                   help="the original working repository, providing models/molopt_score_model2.py")
+    p.add_argument("--ckpt", required=True)
+    p.add_argument("--data-path", required=True)
+    p.add_argument("--split-path", required=True)
+    p.add_argument("--device", default="cuda")
+    p.add_argument("--batch-size", type=int, default=2)
+    p.add_argument("--timesteps", type=int, nargs="+",
+                   default=[1, 100, 300, 500, 700, 900, 999],
+                   help="sweep so a timestep-dependent branch cannot hide")
+    p.add_argument("--pos-noise-std", type=float, default=0.1)
+    return p.parse_args()
+
+
+def build_batch(ref_repo: Path, data_path: str, split_path: str, batch_size: int, device: str):
+    """Build one minibatch using the ORIGINAL repository's data stack.
+
+    Using the original loader on purpose: if the release's dataset code had drifted, feeding
+    both models from the original removes that as a confound and isolates the model itself.
+    The release's own loader is exercised separately by Control A-prime.
+    """
+    sys.path.insert(0, str(ref_repo))
+    from datasets import get_dataset                      # noqa: E402
+    from datasets.pl_data import FOLLOW_BATCH             # noqa: E402
+    import utils.transforms as trans                      # noqa: E402
+    from torch_geometric.loader import DataLoader         # noqa: E402
+    from torch_geometric.transforms import Compose        # noqa: E402
+    from easydict import EasyDict                         # noqa: E402
+
+    protein_featurizer = trans.FeaturizeProteinAtom()
+    ligand_featurizer = trans.FeaturizeLigandAtom("add_aromatic")
+    transform = Compose([
+        protein_featurizer,
+        ligand_featurizer,
+        trans.FeaturizeLigandBond(),
+        trans.NormalizeVina("pl"),
+        trans.FeaturizeVinaAtomTypes(),
+    ])
+    cfg = EasyDict({"name": "pl", "path": data_path, "split": split_path})
+    _, subsets = get_dataset(config=cfg, transform=transform)
+    loader = DataLoader(subsets["test"], batch_size=batch_size, shuffle=False,
+                        num_workers=0, follow_batch=FOLLOW_BATCH,
+                        exclude_keys=["ligand_nbh_list"])
+    batch = next(iter(loader)).to(device)
+    return batch, protein_featurizer.feature_dim, ligand_featurizer.feature_dim
+
+
+def load_models(ref_repo: Path, ckpt_path: str, p_dim: int, l_dim: int, device: str):
+    """Instantiate the reference and the pruned model from the same checkpoint."""
+    ckpt = torch.load(ckpt_path, map_location=device)
+    model_cfg = ckpt["config"].model
+
+    # Reference. Its imports are bare ('from utils...', 'from models...') and resolve into
+    # the original repository, which is already first on sys.path.
+    sys.path.insert(0, str(ref_repo))
+    from models.molopt_score_model2 import ScorePosNet3D as RefModel   # noqa: E402
+
+    # Release. Its imports are all prefixed 'gated_energy_diffusion.', so there is no
+    # collision with the reference's bare module names.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from gated_energy_diffusion.models.score_model import ScorePosNet3D as NewModel  # noqa: E402
+
+    ref = RefModel(model_cfg, protein_atom_feature_dim=p_dim, ligand_atom_feature_dim=l_dim).to(device)
+    new = NewModel(model_cfg, protein_atom_feature_dim=p_dim, ligand_atom_feature_dim=l_dim).to(device)
+
+    r_missing, r_unexpected = ref.load_state_dict(ckpt["model"], strict=False)
+    n_missing, n_unexpected = new.load_state_dict(ckpt["model"], strict=False)
+
+    print("state_dict load:")
+    print(f"  reference : {len(r_missing)} missing, {len(r_unexpected)} unexpected")
+    print(f"  release   : {len(n_missing)} missing, {len(n_unexpected)} unexpected")
+    if n_missing:
+        print(f"  release missing keys: {sorted(n_missing)[:10]}")
+
+    ref_keys, new_keys = set(ref.state_dict()), set(new.state_dict())
+    only_ref = sorted(ref_keys - new_keys)
+    only_new = sorted(new_keys - ref_keys)
+    print(f"  parameters only in reference: {len(only_ref)}")
+    if only_ref:
+        # Expected: the dual head. Anything else means the prune removed live parameters.
+        unexpected = [k for k in only_ref
+                      if not any(m in k for m in ("head2", "pignet", "expert_pred_head2"))]
+        print(f"    sample: {only_ref[:6]}")
+        if unexpected:
+            print(f"    UNEXPECTED (not head2/pignet): {unexpected}")
+    print(f"  parameters only in release  : {len(only_new)}  {only_new[:6]}")
+
+    ref.eval()
+    new.eval()
+    return ref, new, only_ref, only_new, n_missing
+
+
+def compare_losses(ref, new, batch, t_value: int, protein_noise: torch.Tensor, device: str):
+    """One timestep: compare every loss term and every parameter gradient, bitwise."""
+    n_graphs = batch.num_graphs
+    time_step = torch.full((n_graphs,), t_value, dtype=torch.long, device=device)
+    gt_protein_pos = batch.protein_pos + protein_noise
+
+    def run(model):
+        model.zero_grad(set_to_none=True)
+        results = model.get_diffusion_loss(
+            protein_pos=gt_protein_pos,
+            protein_v=batch.protein_atom_feature.float(),
+            affinity=batch.affinity,
+            batch_protein=batch.protein_element_batch,
+            ligand_pos=batch.ligand_pos,
+            ligand_v=batch.ligand_atom_feature_full,
+            batch_ligand=batch.ligand_element_batch,
+            time_step=time_step,
+            ligand_xs=batch.ligand_vina_xs,
+            protein_xs=batch.protein_vina_xs,
+        )
+        loss = results["loss"]
+        grads = torch.autograd.grad(
+            loss, [p for _, p in sorted(model.named_parameters()) if p.requires_grad],
+            allow_unused=True, retain_graph=False,
+        )
+        names = [n for n, p in sorted(model.named_parameters()) if p.requires_grad]
+        return results, dict(zip(names, grads))
+
+    r_res, r_grad = run(ref)
+    n_res, n_grad = run(new)
+
+    failures = []
+
+    for key in ("loss", "loss_pos", "loss_v", "loss_exp", "loss_vdw"):
+        a, b = r_res.get(key), n_res.get(key)
+        if a is None and b is None:
+            continue
+        if a is None or b is None:
+            failures.append(f"t={t_value} {key}: present in only one model "
+                            f"(ref={'y' if a is not None else 'n'}, new={'y' if b is not None else 'n'})")
+            continue
+        if not torch.equal(a.detach(), b.detach()):
+            d = (a.detach() - b.detach()).abs().max().item()
+            failures.append(f"t={t_value} {key}: NOT bitwise equal, max|diff|={d:.6e} "
+                            f"(ref={a.item():.10g} new={b.item():.10g})")
+
+    shared = sorted(set(r_grad) & set(n_grad))
+    n_bad = 0
+    worst = (0.0, None)
+    for name in shared:
+        a, b = r_grad[name], n_grad[name]
+        if a is None and b is None:
+            continue
+        if a is None or b is None:
+            failures.append(f"t={t_value} grad {name}: None in only one model")
+            continue
+        if not torch.equal(a, b):
+            n_bad += 1
+            d = (a - b).abs().max().item()
+            if d > worst[0]:
+                worst = (d, name)
+    if n_bad:
+        failures.append(f"t={t_value} gradients: {n_bad}/{len(shared)} tensors differ; "
+                        f"worst max|diff|={worst[0]:.6e} at {worst[1]}")
+
+    status = "OK" if not failures else "FAIL"
+    vdw = r_res.get("loss_vdw")
+    print(f"  t={t_value:4d}  {status:4s}  loss={r_res['loss'].item():.10g}"
+          f"  loss_vdw={vdw.item():.10g}" if vdw is not None else
+          f"  t={t_value:4d}  {status:4s}  loss={r_res['loss'].item():.10g}")
+    return failures
+
+
+def main() -> int:
+    args = parse_args()
+    ref_repo = Path(args.reference_repo).resolve()
+
+    print("=" * 78)
+    print("Control A: loss and gradient equivalence, reference vs pruned")
+    print("=" * 78)
+    print(f"reference repo : {ref_repo}")
+    print(f"checkpoint     : {args.ckpt}")
+    print(f"device         : {args.device}")
+    if args.device.startswith("cuda") and torch.cuda.is_available():
+        print(f"gpu            : {torch.cuda.get_device_name()}")
+    print(f"torch          : {torch.__version__}")
+    print()
+
+    batch, p_dim, l_dim = build_batch(ref_repo, args.data_path, args.split_path,
+                                      args.batch_size, args.device)
+    print(f"batch: {batch.num_graphs} complexes, "
+          f"{batch.ligand_pos.shape[0]} ligand atoms, {batch.protein_pos.shape[0]} pocket atoms")
+    assert getattr(batch, "ligand_vina_xs", None) is not None, "XS flags missing from the batch"
+    print()
+
+    ref, new, only_ref, only_new, n_missing = load_models(
+        ref_repo, args.ckpt, p_dim, l_dim, args.device)
+    print()
+
+    # The pocket perturbation the training loop applies, drawn ONCE and replayed.
+    torch.manual_seed(2021)
+    protein_noise = torch.randn_like(batch.protein_pos) * args.pos_noise_std
+
+    print(f"comparing at {len(args.timesteps)} timesteps (pos_noise_std={args.pos_noise_std}):")
+    failures: list[str] = []
+    for t in args.timesteps:
+        failures += compare_losses(ref, new, batch, t, protein_noise, args.device)
+    print()
+
+    structural = []
+    if n_missing:
+        structural.append(f"release model has {len(n_missing)} missing state_dict keys")
+    if only_new:
+        structural.append(f"release model has {len(only_new)} parameters the reference lacks")
+    bad_only_ref = [k for k in only_ref
+                    if not any(m in k for m in ("head2", "pignet", "expert_pred_head2"))]
+    if bad_only_ref:
+        structural.append(f"reference-only parameters that are not head2/pignet: {bad_only_ref}")
+
+    if failures or structural:
+        print("RESULT: FAIL")
+        for f in structural + failures:
+            print(f"  {f}")
+        print("\nA nonzero difference is a behavioural change, not noise. Do not widen a")
+        print("tolerance; find the pruned statement that mattered.")
+        return 1
+
+    print("RESULT: PASS -- every loss term and every shared gradient is bitwise identical")
+    print(f"  timesteps checked: {args.timesteps}")
+    print(f"  reference-only parameters: {len(only_ref)} (all dual-head/PIGNet, as expected)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
