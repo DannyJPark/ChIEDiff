@@ -12,6 +12,7 @@ type: software
 license: MIT
 version: 1.0.0
 repository-code: https://github.com/DannyJPark/ChIEDiff
+doi: 10.5281/zenodo.23000086
 keywords:
   - structure-based drug design
   - 3D molecular generation
