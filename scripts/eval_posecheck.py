@@ -11,7 +11,7 @@ PROTEIN-ligand clashes and returns a strain energy in kcal/mol.
 Run from the repo root with the `posecheck` env's interpreter -- its rdkit is far newer than the
 project's and must not leak into `kgdiff`:
 
-    /home/ktori1361/anaconda3/envs/posecheck/bin/python scripts/eval_posecheck.py \
+    "$CONDA_BASE/envs/ged-posecheck/bin/python" scripts/eval_posecheck.py \
         --dir eval_out/vina_fixed --pocket 0
 
 Input  : <dir>/manifest.csv (pocket_idx,pocket,receptor,n_mols,ref_ligand) + <dir>/sdf/pocket<NNN>.sdf

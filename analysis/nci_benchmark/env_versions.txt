@@ -15,7 +15,7 @@ Do not "fix" this by switching PoseCheck to reduce: it would invalidate the 7 mo
 PoseCheck results already computed.
 
 =====================================================================
-kgdiff env  -- /home/ktori1361/anaconda3/envs/kgdiff
+kgdiff env  -- $CONDA_BASE/envs/kgdiff
 Python 3.9.23
 =====================================================================
   rdkit             2024.03.6
@@ -31,7 +31,7 @@ Python 3.9.23
   Used for: sampling, PLIP interaction profiling, Vina/meeko docking, all aggregation scripts.
 
 =====================================================================
-posecheck env  -- /home/ktori1361/anaconda3/envs/posecheck
+posecheck env  -- $CONDA_BASE/envs/posecheck
 Python 3.10.20
 =====================================================================
   rdkit             2026.03.4    <- far newer than kgdiff's; must never leak into kgdiff
@@ -46,7 +46,7 @@ Python 3.10.20
   `hydride` binary resolves.
 
 =====================================================================
-docking binaries  -- /home/ktori1361/bin
+docking binaries  -- $HOME/bin
 =====================================================================
   gnina             v1.1 master:e4cb380+  (built 2023-12-18)
                     v1.3+ will not run here: cluster glibc is 2.34.
