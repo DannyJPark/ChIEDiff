@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch_geometric.data import Data, Batch
 
-from utils.warmup import GradualWarmupScheduler
+from gated_energy_diffusion.utils.warmup import GradualWarmupScheduler
 
 
 # customize exp lr scheduler with min lr

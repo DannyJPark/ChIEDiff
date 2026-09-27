@@ -2,8 +2,8 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from datasets.pl_data import ProteinLigandData
-from utils import data as utils_data
+from gated_energy_diffusion.datasets.pl_data import ProteinLigandData
+from gated_energy_diffusion.utils import data as utils_data
 
 AROMATIC_FEAT_MAP_IDX = utils_data.ATOM_FAMILIES_ID['Aromatic']
 
@@ -182,7 +182,7 @@ class FeaturizeVinaAtomTypes(object):
     """
 
     def __call__(self, data: ProteinLigandData):
-        from utils.vina_types import protein_vina_flags, ligand_vina_flags
+        from gated_energy_diffusion.utils.vina_types import protein_vina_flags, ligand_vina_flags
         data.protein_vina_xs = protein_vina_flags(data.protein_atom_name, data.protein_atom_to_aa_type)
         data.ligand_vina_xs = ligand_vina_flags(data.ligand_element, data.ligand_bond_index,
                                                 data.ligand_atom_feature)

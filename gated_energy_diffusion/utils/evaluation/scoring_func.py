@@ -6,7 +6,7 @@ from rdkit.Chem import AllChem, Descriptors, Crippen, Lipinski
 from rdkit.Chem.FilterCatalog import *
 from rdkit.Chem.QED import qed
 
-from utils.evaluation.sascorer import compute_sa_score
+from gated_energy_diffusion.utils.evaluation.sascorer import compute_sa_score
 
 
 def is_pains(mol):

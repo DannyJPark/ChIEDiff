@@ -35,8 +35,8 @@ ALLOWED = {
     # name. Renaming the model means renaming the repository, and this line follows.
     "pyproject.toml",
     # The LaTeX macro definitions the table harness expands.
-    "tables/tables_main.tex",
-    "tables/tables_supplementary.tex",
+    "paper/main.tex",
+    "paper/supplementary.tex",
     # Provenance records describe history and may quote old paths.
     "docs/provenance.md",
     "docs/migration_manifest.tsv",
@@ -51,6 +51,12 @@ FORBIDDEN = {
 
 # This file necessarily spells out every name it searches for.
 SELF = {"tools/check_no_model_name.py"}
+
+# Data, not code. These hold measured rows and figure manifests in which the model's
+# DISPLAY name is a legitimate value -- a row label, a legend entry. Renaming the model
+# means regenerating them, which `make tables` does, so they are not a rename surface.
+# The guard stays strict everywhere else.
+SKIP_PREFIXES = ("paper/data/", "results/", "analysis/")
 
 SKIP_DIRS = {".git", "__pycache__", "archive", "node_modules", ".venv"}
 TEXT_SUFFIXES = {
@@ -94,7 +100,7 @@ def main() -> int:
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         rel = path.relative_to(ROOT).as_posix()
-        if rel in SELF:
+        if rel in SELF or rel.startswith(SKIP_PREFIXES):
             continue
         try:
             text = path.read_text(encoding="utf-8")

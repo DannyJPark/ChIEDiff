@@ -186,7 +186,7 @@ The model name appears in exactly these places:
 | `README.md` | title and the Project name field |
 | `NOTICE.md`, `CITATION.cff` | title |
 | `pyproject.toml` | the `Homepage` URL (it carries the repository name) |
-| `tables/tables_main.tex`, `tables/tables_supplementary.tex` | `\newcommand{\method}` |
+| `paper/main.tex`, `paper/supplementary.tex` | `\newcommand{\method}` |
 
 Outside the repository: the GitHub repository name and the Zenodo record title. Nothing
 else references it — `tools/check_no_model_name.py` enforces that in pre-commit, so a leak

@@ -30,7 +30,35 @@ archive/
 figure_build/figures/generated/
 figure_build/figures/panels/*.png
 
+# Derived table data. build_revision_tables.py regenerates all of these from results/ on
+# every `make tables`, so they are build output, not source. The other files in paper/data/
+# (score_distributions.csv.gz, round2_vinardo_pairs.csv.gz and the four manifests) ARE
+# inputs and are tracked.
+paper/data/ablation_OFF.csv
+paper/data/ablation_ON.csv
+paper/data/ablation_plip.csv
+paper/data/coverage.csv
+paper/data/distributions.csv
+paper/data/main_ablation.csv
+paper/data/main_chemistry.csv
+paper/data/main_quality.csv
+paper/data/pose_table.csv
+paper/data/posebusters.csv
+paper/data/properties.csv
+paper/data/specificity_audit.csv
+paper/data/manifest.json
+paper/data/table_specs.json
+
 # LaTeX build products of the table harness
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
 tables/*.aux
 tables/*.log
 tables/*.out

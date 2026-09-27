@@ -1,0 +1,17 @@
+{
+  "base_cache": "results/comparison/figures/rsg_ecdf_per_molecule.csv.gz",
+  "base_sha256": "c790d73892d4fae59e362a545f2f4ec97e0d1997e70f80678584bc30d5c1c901",
+  "replacement": "pidiff_pub removed; pidiff_retrain extracted via build_main_table.model_records",
+  "source": "results/pidiff_retrain_gen/pidiff_retrain_vina_docked.pt",
+  "provenance": {
+    "tag": "pidiff_retrain",
+    "sbdd_pt": "results/pidiff_retrain_gen/pidiff_retrain_vina_docked.pt",
+    "pose_pt": "results/pidiff_retrain_gen/pidiff_retrain_vina_docked.pt",
+    "remapped": false,
+    "n_keys": 8654,
+    "n_vina": 8654,
+    "n_pen": 0,
+    "n_final": 8654
+  },
+  "n_pidiff": 8654
+}

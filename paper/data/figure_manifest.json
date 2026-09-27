@@ -1,0 +1,97 @@
+{
+  "source_sha256": {
+    "paper/data/score_distributions.csv.gz": "68d9c086da72f07a4e4dbe3fe49c2f7fc1189b3b765321fecb1a254da08f90c4",
+    "results/pose_fidelity/master.csv": "2ac56a358dc7aa2367e625ef38828e3ffb360f8874620d08470f098fb4581446",
+    "results/comparison/f1_sbdd/main_table/main_table.csv": "bd6eda0c37feb0d25ee543db5053075b19b45677040534e8e80d6c7b8996176f",
+    "results/comparison/f2_pose_fidelity/pose_stability/pose_stability_strict.csv": "9f8d219931139b01bc6085436c4034968c0bdecf919801369d905ae2dd465247",
+    "paper/data/ablation_plip.csv": "7a6d8c51888b499e52fdc411e25cb95a9af0f026b25264f6185d285a7f0ae965",
+    "results/comparison/f1_sbdd/properties/property_per_molecule.csv.gz": "d5634319781b84be739aa78f7b1e6039e999141f96594b03a2892580b1526d3d",
+    "results/comparison/f1_sbdd/ring_size/ring_size_overall.csv": "665005ad516fdc2a108f7525e5ea6c69bc6ef8b7c4597d84cc1cc5f3c2497325",
+    "results/diagnostics/type_cf/type_cf/pocket0.csv": "581fede93ca483b7bc191dd8b78681d27c8745e0437011ce9b2ca750e7caf3e6",
+    "results/diagnostics/type_cf/type_cf/pocket1.csv": "b545ca47af3ce783de046ed4f92071a16021cc35cf7370da5727eb6fd8ff5464",
+    "results/diagnostics/type_cf/type_cf/pocket2.csv": "785895cd515bf503da78ab215ff1713884bfa8037c8fdf0ccbeee6318f594a5f",
+    "results/diagnostics/type_cf/type_cf/pocket3.csv": "977a055f0b71dda42f4095b9047cebfdc8e048b37ad191de1d3e5ea323b9d717",
+    "results/diagnostics/type_cf/type_cf/pocket4.csv": "50982cf7e668445dffde0ffe945c120eee8d06d4b81a8b39e8367002e6f4b673",
+    "results/diagnostics/gate_within/gate_within/gate_within_per_mol.csv": "9d6cea36253c53cfbb0755c4596b813cde1ac6a3ef3a40e0e97e5e8c598ab038"
+  },
+  "cohort_checks": {
+    "pocket2mol": {
+      "score_n": 9831,
+      "pose_n": 9801
+    },
+    "targetdiff": {
+      "score_n": 9036,
+      "pose_n": 8954
+    },
+    "ipdiff": {
+      "score_n": 9011,
+      "pose_n": 8689
+    },
+    "alidiff": {
+      "score_n": 9236,
+      "pose_n": 8858
+    },
+    "molcraft": {
+      "score_n": 9667,
+      "pose_n": 9657
+    },
+    "pidiff_retrain": {
+      "score_n": 8654,
+      "pose_n": 8469
+    },
+    "kgdiff": {
+      "score_n": 8813,
+      "pose_n": 8278
+    },
+    "ours_vina": {
+      "score_n": 8338,
+      "pose_n": 8069
+    }
+  },
+  "archived_round1_selection": [
+    "targetdiff",
+    "kgdiff",
+    "molcraft",
+    "pidiff_retrain",
+    "ours_vina"
+  ],
+  "all_generators": [
+    "pocket2mol",
+    "targetdiff",
+    "ipdiff",
+    "alidiff",
+    "molcraft",
+    "pidiff_retrain",
+    "kgdiff",
+    "ours_vina"
+  ],
+  "current_main_figures": [
+    "main_figure_fixed2.png",
+    "redocking_consistency_main_v2.pdf",
+    "nci_dist_prolif_baselines_boxen.pdf"
+  ],
+  "main_figure2_generator": "paper/figure_build/make_round2_consistency.py",
+  "user_asset_not_generated": "main_figure_fixed2.png",
+  "ecdf_weighting": "one equal weight per eligible molecule",
+  "ecdf_axis": "symlog; linear threshold 2, linear scale 1.5; complete tails",
+  "palette": {
+    "pocket2mol": "#8061aa",
+    "targetdiff": "#2878b5",
+    "ipdiff": "#e69f00",
+    "alidiff": "#56b4e9",
+    "molcraft": "#009e73",
+    "pidiff_retrain": "#9b5932",
+    "kgdiff": "#3e4a89",
+    "ours_vina": "#d43f3a"
+  },
+  "line_styles": {
+    "pocket2mol": "--",
+    "targetdiff": "-",
+    "ipdiff": ":",
+    "alidiff": "-.",
+    "molcraft": "-",
+    "pidiff_retrain": "--",
+    "kgdiff": "-.",
+    "ours_vina": "-"
+  }
+}

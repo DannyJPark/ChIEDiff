@@ -3,7 +3,7 @@
 import numpy as np
 from scipy import spatial as sc_spatial
 
-from utils.evaluation.atom_num_config import CONFIG
+from gated_energy_diffusion.utils.evaluation.atom_num_config import CONFIG
 
 
 def get_space_size(pocket_3d_pos):
