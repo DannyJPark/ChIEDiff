@@ -1,0 +1,304 @@
+{
+  "_comment": [
+    "Single source of truth for where every manuscript float lives.",
+    "place: body = main.tex main matter | appendix = main.tex appendices (transitional)",
+    "       | supp = supplementary.tex (Additional file 1).",
+    "DERIVED from the .tex files by tools/build_float_registry.py -- do not hand-edit.",
+    "To move a float, use tools/move_float.py, which edits the documents and re-derives",
+    "this file; list order is document order and is asserted as such."
+  ],
+  "floats": [
+    {
+      "label": "fig:problem",
+      "kind": "figure",
+      "env": "figure",
+      "place": "body",
+      "file": "problem_definition_v2.pdf"
+    },
+    {
+      "label": "tab:notation",
+      "kind": "table",
+      "env": "table",
+      "place": "body",
+      "auto": false
+    },
+    {
+      "label": "fig:overview",
+      "kind": "figure",
+      "env": "figure",
+      "place": "body",
+      "file": "main_figure_fixed2.png"
+    },
+    {
+      "label": "tab:coverage",
+      "kind": "table",
+      "env": "table",
+      "place": "body",
+      "auto": true
+    },
+    {
+      "label": "tab:a1",
+      "kind": "table",
+      "env": "table",
+      "place": "body",
+      "auto": true
+    },
+    {
+      "label": "fig:consistency",
+      "kind": "figure",
+      "env": "figure",
+      "place": "body",
+      "file": "consistency_combined.pdf"
+    },
+    {
+      "label": "tab:quality",
+      "kind": "table",
+      "env": "table",
+      "place": "body",
+      "auto": true
+    },
+    {
+      "label": "fig:plip-distributions",
+      "kind": "figure",
+      "env": "figure",
+      "place": "body",
+      "file": "nci_dist_plip_baselines_boxen.pdf"
+    },
+    {
+      "label": "tab:ablation-main",
+      "kind": "table",
+      "env": "table",
+      "place": "body",
+      "auto": true
+    },
+    {
+      "label": "tab:chemistry",
+      "kind": "table",
+      "env": "table",
+      "place": "body",
+      "auto": true
+    },
+    {
+      "label": "fig:chemical-distributions",
+      "kind": "figure",
+      "env": "figure",
+      "place": "body",
+      "file": "property_distributions.pdf"
+    },
+    {
+      "label": "fig:ring-distributions",
+      "kind": "figure",
+      "env": "figure",
+      "place": "body",
+      "file": "ring_distributions.pdf"
+    },
+    {
+      "label": "fig:case-study",
+      "kind": "figure",
+      "env": "figure",
+      "place": "body",
+      "file": "case_study.pdf"
+    },
+    {
+      "label": "alg:training",
+      "kind": "algorithm",
+      "env": "algorithm",
+      "place": "supp"
+    },
+    {
+      "label": "alg:sampling",
+      "kind": "algorithm",
+      "env": "algorithm",
+      "place": "supp"
+    },
+    {
+      "label": "tab:instruments",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": false
+    },
+    {
+      "label": "tab:consistency-paired",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "fig:paired-full",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "redocking_consistency_paired_full_v2.pdf"
+    },
+    {
+      "label": "fig:joint-all",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "redocking_joint_all_v2.pdf"
+    },
+    {
+      "label": "tab:gaps",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:f3",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:a2",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:nci-normalized",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "fig:prolif-distributions",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "nci_dist_prolif_baselines_boxen.pdf"
+    },
+    {
+      "label": "tab:pose-engineonly",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "fig:consistency-all",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "redocking_consistency_all.pdf"
+    },
+    {
+      "label": "tab:pose-extended",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:f2",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:properties",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:distributions",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:bond-types",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "fig:ablation",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "energy_ablation.pdf"
+    },
+    {
+      "label": "fig:plip-ablation-distributions",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "nci_dist_plip_ablation_boxen.pdf"
+    },
+    {
+      "label": "fig:prolif-ablation-distributions",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "nci_dist_prolif_ablation_boxen.pdf"
+    },
+    {
+      "label": "tab:abl-plip",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:abl-on",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:abl-off",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "fig:type-counterfactual",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "type_counterfactual.pdf"
+    },
+    {
+      "label": "fig:gate-contrasts",
+      "kind": "figure",
+      "env": "figure",
+      "place": "supp",
+      "file": "gate_contrasts.pdf"
+    },
+    {
+      "label": "tab:posebusters",
+      "kind": "table",
+      "env": "sidewaystable",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:f4",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    },
+    {
+      "label": "tab:specificity-audit",
+      "kind": "table",
+      "env": "table",
+      "place": "supp",
+      "auto": true
+    }
+  ]
+}

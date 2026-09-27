@@ -184,10 +184,27 @@ class ScorePosNet3D(nn.Module):
 
     def __init__(self, config, protein_atom_feature_dim, ligand_atom_feature_dim):
         super().__init__()
-        assert getattr(config, 'vdw_loss_mode', 'vina') == 'vina', (
-            "the only interaction loss implemented here is the chemistry-gated Vina energy; "
-            f"vdw_loss_mode={getattr(config, 'vdw_loss_mode', 'vina')!r} selects a loss that "
-            "is not part of this release")
+        # Config guards. Written as raises rather than asserts on purpose: `python -O`
+        # strips asserts, and the failure these prevent is silent -- a stale config from the
+        # development tree would train a DIFFERENT model while reporting success.
+        _mode = getattr(config, 'vdw_loss_mode', 'vina')
+        if _mode != 'vina':
+            raise ValueError(
+                "the only interaction loss implemented here is the chemistry-gated Vina "
+                f"energy; vdw_loss_mode={_mode!r} selects a loss that is not part of this "
+                "release")
+        if getattr(config, 'use_dual_head_sam_pl', False):
+            raise ValueError(
+                "use_dual_head_sam_pl=True requests the dual-head architecture, which is "
+                "not part of this release. Without this guard the run would silently train "
+                "a single head instead, producing a model that is not what the config asks "
+                "for. Use configs/train.yml, which omits the key.")
+        if getattr(config, 'vina_type_gating', True) is not True:
+            raise ValueError(
+                "vina_type_gating=False makes the hydrophobic and hydrogen-bond terms fire "
+                "on every pair instead of switching them off. That ungated form is not the "
+                "published model. To ablate a channel, set vina_hydro_scale or "
+                "vina_hbond_scale to 0 instead.")
         self.config = config
 
         # === Diffusion schedule ===

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import radius_graph, knn_graph
 from torch_scatter import scatter_softmax, scatter_sum
 
-from models.common import GaussianSmearing, MLP, batch_hybrid_edge_connection, batch_hybrid_edge_connection_selective, selective_knn_graph, selective_radius_graph, outer_product
+from gated_energy_diffusion.models.common import GaussianSmearing, MLP, batch_hybrid_edge_connection, batch_hybrid_edge_connection_selective, selective_knn_graph, selective_radius_graph, outer_product
 
 
 class BaseX2HAttLayer(nn.Module):

@@ -11,9 +11,13 @@ from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 import logging
 
-from utils.data import PDBProtein, parse_sdf_file
-from datasets.pl_data import ProteinLigandData, torchify_dict
-from scripts.data_preparation.clean_crossdocked import TYPES_FILENAME
+from gated_energy_diffusion.utils.data import PDBProtein, parse_sdf_file
+from gated_energy_diffusion.datasets.pl_data import ProteinLigandData, torchify_dict
+# Inlined rather than imported from scripts/data_preparation/clean_crossdocked.py, which
+# defines the same constant: a library should not import from the scripts directory, and
+# this keeps the package self-contained. The file is CrossDocked2020's own types index,
+# read only when an LMDB record lacks a cached affinity.
+TYPES_FILENAME = 'types/it2_tt_v1.1_completeset_train0.types'
 
 
 class MultiProteinPairedDataset(Dataset):

@@ -121,11 +121,21 @@ def compare_losses(ref, new, batch, t_value: int, protein_noise: torch.Tensor, d
     gt_protein_pos = batch.protein_pos + protein_noise
 
     def run(model):
+        # get_diffusion_loss draws the forward-process noise itself -- a Gaussian for the
+        # coordinates and a categorical sample for the atom types. Pinning time_step is not
+        # enough: whichever model runs second would otherwise see a different RNG state and
+        # every term would differ, which is a measurement artifact, not a code difference.
+        # Reseed immediately before each call so both consume the identical stream.
+        torch.manual_seed(20260927 + t_value)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(20260927 + t_value)
         model.zero_grad(set_to_none=True)
         results = model.get_diffusion_loss(
             protein_pos=gt_protein_pos,
             protein_v=batch.protein_atom_feature.float(),
-            affinity=batch.affinity,
+            # .float() matches the training loop: batch.affinity is float64 and the
+            # backward pass rejects a Double loss term.
+            affinity=batch.affinity.float(),
             batch_protein=batch.protein_element_batch,
             ligand_pos=batch.ligand_pos,
             ligand_v=batch.ligand_atom_feature_full,
