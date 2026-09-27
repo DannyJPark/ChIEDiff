@@ -60,10 +60,16 @@ TEXT_SUFFIXES = {
 
 
 def tracked_files() -> list[Path]:
-    """Prefer git's index so untracked scratch files do not fail the hook."""
+    """Every file that could reach a commit: tracked plus untracked-and-not-ignored.
+
+    `git ls-files` alone lists only the index, which made this check silently pass on a
+    file that was sitting in the working tree waiting to be added -- exactly the moment you
+    want it to fail. `-c -o --exclude-standard` covers both while still honouring
+    .gitignore, so build output and downloaded archives stay out.
+    """
     try:
         out = subprocess.run(
-            ["git", "-C", str(ROOT), "ls-files"],
+            ["git", "-C", str(ROOT), "ls-files", "-c", "-o", "--exclude-standard"],
             capture_output=True, text=True, check=True,
         ).stdout.split("\n")
         files = [ROOT / p for p in out if p]
