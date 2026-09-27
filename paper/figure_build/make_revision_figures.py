@@ -55,9 +55,9 @@ def save(fig, name, unused=False):
     # 372pt = 5.15 in -- so a 7.4 in canvas at dpi=180 gave just 1352 px, i.e. 263
     # effective dpi, under the requirement. 300 here yields ~2250 px = ~430 effective
     # dpi. Do not lower it again without redoing that arithmetic.
-    # A figure main.tex does not name goes to figures/unused_figures/, so figures/ holds only
+    # A figure the manuscript does not name goes to figures/extra/, so figures/ holds only
     # the manuscript's figures and their .svg/.png siblings.
-    folder = PAPER / "figures" / "unused_figures" if unused else PAPER / "figures"
+    folder = PAPER / "figure_build" / "figures" / "extra" if unused else PAPER / "figure_build" / "figures"
     for suffix in ("pdf", "svg", "png"):
         fig.savefig(folder / f"{name}.{suffix}", dpi=300, bbox_inches="tight",
                     facecolor="white")

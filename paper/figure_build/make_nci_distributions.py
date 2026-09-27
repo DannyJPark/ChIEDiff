@@ -382,7 +382,7 @@ def main():
         "mean_marker": "white diamond = pooled per-molecule mean; the baselines figures also print it in bold above each body",
         "rows": rows, "table_checks": checks,
         "source_sha256": {p: sha(p) for p in [STRICT, *ABL_CSV.values(), PER_MOL]},
-        "figures": [f"paper/figures/{'unused_figures/' if n.endswith('_violin') else ''}{n}.{s}"
+        "figures": [f"paper/figure_build/figures/{'extra/' if n.endswith('_violin') else ''}{n}.{s}"
                     for n in built for s in ("pdf", "svg", "png")],
         "palette": {"baselines": {m: c for m, _, c, _ in base_spec},
                     "ablation_terms": TERM_COLOR, "reference": REF_COLOR,

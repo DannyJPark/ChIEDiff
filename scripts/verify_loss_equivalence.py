@@ -224,38 +224,48 @@ def main() -> int:
     torch.manual_seed(2021)
     protein_noise = torch.randn_like(batch.protein_pos) * args.pos_noise_std
 
-    # NOISE FLOOR. This architecture reduces with scatter_add / scatter_mean, which on CUDA
-    # accumulate through atomics in nondeterministic order. Two runs of the SAME model
-    # therefore disagree at float32 level, so "bitwise" is not a reachable criterion on GPU
-    # and a raw ref-vs-release difference cannot be interpreted without knowing that floor.
-    # Measure it first by comparing the reference against itself.
-    print("noise floor: the reference model against itself (same inputs, same seed)")
-    floor = compare_losses(ref, ref, batch, args.timesteps[0], protein_noise, args.device,
-                           label="ref vs ref")
-    floor_max = max([f[1] for f in floor], default=0.0)
-    if floor_max == 0.0:
-        print("  floor is exactly 0 -- this device/kernel set is deterministic, so "
-              "bitwise equality is the correct criterion")
-    else:
-        print(f"  floor is {floor_max:.3e} -- nondeterministic reductions. ref-vs-release "
-              f"must not exceed this")
+    # NOISE FLOOR, PER TIMESTEP. This architecture reduces with scatter_add / scatter_mean,
+    # which accumulate through atomics on CUDA in nondeterministic order, so two runs of the
+    # SAME model disagree at float32 level and "bitwise" is not reachable there.
+    #
+    # The floor must be measured at EVERY timestep, not once: the loss grows by two orders of
+    # magnitude from t=1 to t=999, and the absolute difference grows with it. A floor from one
+    # timestep compared against a difference from another says nothing.
+    print("noise floor: the reference model against itself, per timestep")
+    floor: dict[int, float] = {}
+    for t in args.timesteps:
+        d = compare_losses(ref, ref, batch, t, protein_noise, args.device, label="ref vs ref")
+        floor[t] = max([v for _, v in d], default=0.0)
+    deterministic = all(v == 0.0 for v in floor.values())
+    print(f"  {'deterministic device: floor is exactly 0 at every timestep' if deterministic else 'nondeterministic reductions; per-timestep floor above'}")
     print()
 
     print(f"comparing at {len(args.timesteps)} timesteps (pos_noise_std={args.pos_noise_std}):")
-    diffs: list[tuple[str, float]] = []
-    for t in args.timesteps:
-        diffs += compare_losses(ref, new, batch, t, protein_noise, args.device)
-
-    worst = max([d[1] for d in diffs], default=0.0)
     failures: list[str] = []
-    if floor_max == 0.0:
-        failures = [f"{k}: {v:.6e}" for k, v in diffs if v != 0.0]
-    elif worst > floor_max:
-        failures = [f"{k}: {v:.6e} exceeds the {floor_max:.3e} floor"
-                    for k, v in diffs if v > floor_max]
+    ratios = []
+    for t in args.timesteps:
+        d = compare_losses(ref, new, batch, t, protein_noise, args.device)
+        worst_t = max([v for _, v in d], default=0.0)
+        f_t = floor[t]
+        if deterministic:
+            failures += [f"t={t} {k}: {v:.6e} (device is deterministic; must be 0)"
+                         for k, v in d if v != 0.0]
+        else:
+            # Allow a factor of 2 over the floor: the floor is one sample of a random
+            # quantity, so a second draw can legitimately land somewhat above it.
+            ratios.append(worst_t / f_t if f_t else float("inf"))
+            if worst_t > 2.0 * f_t:
+                failures.append(f"t={t}: worst difference {worst_t:.3e} is "
+                                f"{worst_t / f_t:.1f}x the same-model floor {f_t:.3e}")
     print()
-    print(f"worst ref-vs-release difference: {worst:.3e}   "
-          f"same-model floor: {floor_max:.3e}")
+    if deterministic:
+        print("device is deterministic; criterion is exact equality")
+    else:
+        print("per-timestep ratio of ref-vs-release to the same-model floor:")
+        for t, r in zip(args.timesteps, ratios):
+            print(f"  t={t:4d}  {r:5.2f}x  (floor {floor[t]:.3e})")
+        print("  a ratio near or below 1 means the difference is indistinguishable from the")
+        print("  device's own nondeterminism")
     print()
 
     structural = []
@@ -280,14 +290,13 @@ def main() -> int:
         print("deterministic arm that isolates the code from the GPU reductions.")
         return 1
 
-    if floor_max == 0.0:
+    if deterministic:
         print("RESULT: PASS -- bitwise identical on a deterministic device")
     else:
-        print(f"RESULT: PASS -- ref-vs-release ({worst:.3e}) is within the same-model floor "
-              f"({floor_max:.3e})")
-        print("  The floor is nonzero because this architecture reduces with scatter atomics,")
-        print("  which are order-nondeterministic on CUDA: two runs of the SAME model differ by")
-        print("  the same amount. Use --device cpu for a bitwise arm.")
+        print("RESULT: PASS -- at every timestep the ref-vs-release difference is within twice")
+        print("  the difference the reference produces against itself, i.e. indistinguishable")
+        print("  from this device's scatter-atomic nondeterminism. Run with --device cpu for a")
+        print("  deterministic arm that tests the code without the GPU reductions.")
     print(f"  timesteps checked: {args.timesteps}")
     print(f"  reference-only parameters: {len(only_ref)} (all dual-head/PIGNet, as expected)")
     return 0

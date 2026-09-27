@@ -737,7 +737,7 @@ def main():
                    help='comma-separated ids for the figure; default is the 9-row paper roster')
     p.add_argument('--jobs', type=int, default=1, help='models measured in parallel')
     p.add_argument('--no_figure', action='store_true')
-    p.add_argument('--fig_dir', default='paper/figures/unused_figures',
+    p.add_argument('--fig_dir', default='paper/figure_build/figures/extra',
                    help='where the figure is written; the tables stay in --out_dir')
     p.add_argument('--refigure', action='store_true',
                    help='redraw the figure from an existing --out_dir without re-measuring')
