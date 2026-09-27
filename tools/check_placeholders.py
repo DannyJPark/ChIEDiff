@@ -44,6 +44,15 @@ FATAL = [
 # This file necessarily contains the patterns it searches for.
 SELF = {"tools/check_placeholders.py"}
 
+# Copied verbatim from upstream, with their sha256 recorded in docs/migration_manifest.tsv.
+# A work marker inside inherited third-party code is not our unresolved work, and editing it
+# would break both the "copied unmodified" claim and the recorded hash. Excluded from the
+# work-marker scan only -- the credential patterns still apply everywhere.
+UPSTREAM_VERBATIM = {
+    "gated_energy_diffusion/utils/reconstruct.py",   # liGAN, GPL-2.0
+    "gated_energy_diffusion/utils/evaluation/sascorer.py",
+}
+
 SKIP_DIRS = {".git", "__pycache__", "archive", ".venv", "node_modules"}
 TEXT_SUFFIXES = {
     ".py", ".sh", ".yml", ".yaml", ".json", ".tex", ".md", ".cff", ".toml",
@@ -75,6 +84,8 @@ def scan(patterns):
             continue
         rel = path.relative_to(ROOT).as_posix()
         if rel in SELF:
+            continue
+        if rel in UPSTREAM_VERBATIM and patterns is FATAL:
             continue
         try:
             text = path.read_text(encoding="utf-8")
