@@ -46,6 +46,15 @@ python scripts/verify_loss_equivalence.py \
     --data-path "$DATA_PATH" --split-path "$SPLIT_PATH" || rc=1
 echo
 
+echo "###### Control A (CPU): deterministic arm ######"
+# CPU scatter reductions are deterministic, so this arm can demand exact equality and
+# isolates the pruned code from CUDA's order-nondeterministic atomics.
+python scripts/verify_loss_equivalence.py \
+    --reference-repo "$REF_REPO" --ckpt "$CKPT" \
+    --data-path "$DATA_PATH" --split-path "$SPLIT_PATH" \
+    --device cpu --timesteps 1 500 999 || rc=1
+echo
+
 echo "###### Controls C and D: gate assertion, term linearity ######"
 python scripts/verify_energy_invariants.py \
     --reference-repo "$REF_REPO" --ckpt "$CKPT" \

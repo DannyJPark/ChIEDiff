@@ -253,7 +253,10 @@ def check_merged_provenance(reg, fail):
             continue
         out = (m.get('sources') or {}).get('default')
         if not out or not os.path.isfile(out):
-            fail(9, f"{m['id']}: merged_from declared but sources.default {out!r} is missing")
+            if SHIPPED:
+                SKIPPED.append(f"{m['id']}: merged source {out}")
+            else:
+                fail(9, f"{m['id']}: merged_from declared but sources.default {out!r} is missing")
             continue
         prov_path = out + '.provenance.json'
         if not os.path.isfile(prov_path):

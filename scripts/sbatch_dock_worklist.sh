@@ -40,7 +40,7 @@
 #   WL=results/pose_fidelity/worklist_vinardo_min_ref.tsv ENGINE=vinardo MODE=min \
 #     sbatch -p dell_cpu -q cpu_qos -a 0-99 scripts/sbatch_dock_worklist.sh
 set -uo pipefail
-cd /home/ktori1361/TheSelective_fix
+cd "${REPO:-${SLURM_SUBMIT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}}"
 
 WL=${WL:?set WL=<worklist.tsv>}
 ENGINE=${ENGINE:-$(basename "$WL" | cut -d_ -f2)}
