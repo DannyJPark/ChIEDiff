@@ -1,0 +1,90 @@
+{
+  "results/comparison/f1_sbdd/comparison_overall.csv": [
+    "Reference (native)",
+    "CVAE (sf1.5)",
+    "AR",
+    "Pocket2Mol",
+    "liGAN (cvae)",
+    "PharDiff",
+    "TargetDiff",
+    "DeepICL",
+    "DecompDiff",
+    "IPDiff",
+    "MolCRAFT",
+    "AliDiff",
+    "PIDiff (retrained)",
+    "KGDiff",
+    "Ours (Vina Only)",
+    "Ours (Vina+Guide)",
+    "Ours (Guide Only)"
+  ],
+  "results/comparison/f4_delta_score/delta_score_overall.csv": [
+    "Reference (native)",
+    "Pocket2Mol",
+    "TargetDiff",
+    "KGDiff",
+    "AliDiff",
+    "Ours (Vina+Guide)",
+    "Ours (Vina Only)",
+    "IPDiff",
+    "MolCRAFT",
+    "PIDiff (retrained)"
+  ],
+  "results/comparison/f5_pose_quality/posecheck_summary.csv": [
+    "Reference (native)",
+    "Ours (Vina+Guide)",
+    "Ours (Vina Only)",
+    "Ours (Guide Only)",
+    "TargetDiff",
+    "KGDiff",
+    "PIDiff (retrained)",
+    "IPDiff",
+    "Pocket2Mol",
+    "MolCRAFT",
+    "AliDiff"
+  ],
+  "results/comparison/appendix/posebusters/pose_quality_summary_posebusters.csv": [
+    "Ours (Vina+Guide)",
+    "Ours (Guide Only)",
+    "TargetDiff",
+    "KGDiff",
+    "PIDiff (retrained)",
+    "Ours (PIGNet+Guide)",
+    "Ours (PGDiff+Guide)"
+  ],
+  "results/comparison/f2_pose_fidelity/gnina_comparison.csv": [
+    "TargetDiff",
+    "KGDiff",
+    "PIDiff",
+    "Ours(vina_fixed)"
+  ],
+  "results/comparison/f2_pose_fidelity/rmsd_summary.csv": [
+    "Reference (native)",
+    "Ours (Vina+Guide)",
+    "Ours (Guide Only)",
+    "TargetDiff",
+    "KGDiff",
+    "PIDiff (retrained)",
+    "Pocket2Mol",
+    "MolCRAFT",
+    "AliDiff",
+    "IPDiff",
+    "Ours (Vina Only)"
+  ],
+  "results/comparison/f3_nci/nci_summary.csv": [
+    "Reference (native)",
+    "Ours (Vina+Guide)",
+    "Ours (Guide Only)",
+    "TargetDiff",
+    "KGDiff",
+    "PIDiff (retrained)",
+    "IPDiff",
+    "Ours (Vina Only)",
+    "DeepICL",
+    "Pocket2Mol",
+    "MolCRAFT",
+    "PharDiff",
+    "BInD",
+    "AliDiff"
+  ]
+}

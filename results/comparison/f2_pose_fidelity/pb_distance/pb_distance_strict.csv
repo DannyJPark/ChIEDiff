@@ -1,0 +1,13 @@
+id,label,eval_out,tier,cohort,n,clash_free_protein_pct,pb_clashes_protein_avg,pb_clashes_protein_med,clash_free_organic_cofactors_pct,clash_free_inorganic_cofactors_pct,clash_free_waters_pct,clash_free_all_pct,within_5A_pct
+alidiff,AliDiff,alidiff,extended,table2_strict,8858,93.31,0.2265,0.0,99.23,99.64,100.0,92.46,100.0
+ipdiff,IPDiff,ipdiff,extended,table2_strict,8689,87.79,0.3501,0.0,99.08,99.59,100.0,86.87,100.0
+kgdiff,KGDiff,kgdiff,core,table2_strict,8278,97.55,0.1962,0.0,99.7,99.3,100.0,96.67,100.0
+molcraft,MolCRAFT,molcraft,extended,table2_strict,9657,96.19,0.2081,0.0,99.19,99.02,100.0,94.59,100.0
+reference,Reference (native),native,reference,table2_strict,100,98.0,0.05,0.0,100.0,100.0,100.0,98.0,100.0
+novdw,Ours (Guide Only),novdw,ablation,table2_strict,1920,97.24,0.1755,0.0,99.32,99.38,100.0,95.99,100.0
+pidiff_pub,PIDiff,pidiff,core,table2_strict,831,97.23,0.1625,0.0,99.28,99.76,100.0,96.39,100.0
+pidiff_retrain,PIDiff (retrained),pidiff_retrain,core,table2_strict,8469,97.87,0.1877,0.0,99.14,99.62,100.0,96.67,100.0
+pocket2mol,Pocket2Mol,pocket2mol,core,table2_strict,9801,82.51,0.2458,0.0,99.85,99.9,100.0,82.29,100.0
+targetdiff,TargetDiff,targetdiff,core,table2_strict,8954,87.4,0.3844,0.0,99.31,99.06,100.0,86.36,100.0
+ours_vina,Ours (Vina+Guide),vina_fixed,core,table2_strict,8069,98.12,0.1424,0.0,99.5,99.05,100.0,96.7,100.0
+ours_noguide,Ours (Vina Only),vina_fixed_best_noguide,core,table2_strict,2111,98.96,0.099,0.0,99.19,99.01,100.0,97.16,100.0

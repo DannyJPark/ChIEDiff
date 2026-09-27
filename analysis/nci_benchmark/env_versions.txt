@@ -1,0 +1,69 @@
+NCI Benchmark — environment versions
+Recorded 2026-07-24 on cnode02 (Slurm job 1867515), cluster glibc 2.34.
+Regenerate with:  scripts/record_env_versions.sh
+
+WHY THIS FILE EXISTS
+--------------------
+Protonation is NOT performed by one shared tool, contrary to the original plan (§3.4).
+PoseCheck shells out to `hydride` (it hardcodes that command and ignores its own reduce_path
+argument); PLIP delegates to openbabel. The two therefore disagree on absolute interaction
+counts. This is acceptable because within each instrument every model gets identical treatment,
+so model-vs-model comparison is valid -- but absolute counts must never be compared ACROSS the
+two instruments, and that is only auditable if the versions are written down.
+
+Do not "fix" this by switching PoseCheck to reduce: it would invalidate the 7 model tags of
+PoseCheck results already computed.
+
+=====================================================================
+kgdiff env  -- /home/ktori1361/anaconda3/envs/kgdiff
+Python 3.9.23
+=====================================================================
+  rdkit             2024.03.6
+  torch             1.11.0
+  torch_geometric   2.0.4
+  numpy             1.23.1
+  scipy             1.7.3
+  plip              3.0.0        <- NOTE: the plan text said 2.3.0; the installed version is 3.0.0
+  openbabel         3.1.0        <- PLIP's protonation backend (conda-installed, absent from pip list)
+  meeko             0.1.dev3     <- MUST NOT be upgraded; the Vina/meeko arm depends on this pin
+  vina              1.2.2
+
+  Used for: sampling, PLIP interaction profiling, Vina/meeko docking, all aggregation scripts.
+
+=====================================================================
+posecheck env  -- /home/ktori1361/anaconda3/envs/posecheck
+Python 3.10.20
+=====================================================================
+  rdkit             2026.03.4    <- far newer than kgdiff's; must never leak into kgdiff
+  prolif            2.2.0        <- PoseCheck's interaction engine
+  MDAnalysis        2.9.0
+  numpy             2.2.6
+  posecheck         1.3.1        (pip metadata; the package exposes no __version__ attribute)
+  hydride           1.2.3        <- PoseCheck's protonation backend
+
+  Isolation: invoked by ABSOLUTE interpreter path, never `conda activate`, precisely to keep this
+  rdkit out of the project env. eval_posecheck.py puts this env's bin/ back on PATH itself so the
+  `hydride` binary resolves.
+
+=====================================================================
+docking binaries  -- /home/ktori1361/bin
+=====================================================================
+  gnina             v1.1 master:e4cb380+  (built 2023-12-18)
+                    v1.3+ will not run here: cluster glibc is 2.34.
+  smina             Oct 15 2019, based on AutoDock Vina 1.1.2
+  vina (python)     1.2.2  (kgdiff env site-packages)
+
+=====================================================================
+local patches that affect measured values
+=====================================================================
+  scripts/plip_interactions.py   remap_chains(): rewrites PDB col 22 from the (chainID, segID)
+                                 pair. Without it, 11 of 100 NATIVE pockets silently score (0,0).
+                                 Also selects interaction_sets by the 'LIG:Z:1' key, because
+                                 receptors containing ions otherwise yield the ion's empty set.
+  scripts/eval_posecheck.py      _patch_prolif_vdwradii(): supplies vdW radii for CO/CD/NA/FE/ZN/
+                                 MG/MN/CA/CU/NI/K, and shifts negative resids to >=1 (prolif casts
+                                 resids to uint32 and overflows). Without it a receptor holding
+                                 any of these loses its whole pocket.
+  scripts/eval_export_sdf.py     load_grouped(): places flat .pt sets at their CANONICAL pocket
+                                 index rather than renumbering by order of appearance, which had
+                                 paired 77 PIDiff pockets with the wrong receptor.
