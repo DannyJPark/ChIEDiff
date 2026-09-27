@@ -45,9 +45,9 @@ cd "${REPO:-${SLURM_SUBMIT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || p
 WL=${WL:?set WL=<worklist.tsv>}
 ENGINE=${ENGINE:-$(basename "$WL" | cut -d_ -f2)}
 MODE=${MODE:-dock}
-SMINA=${SMINA:-/home/ktori1361/bin/smina}
-GNINA=${GNINA:-/home/ktori1361/bin/gnina}
-MEEKOPY=${MEEKOPY:-/home/ktori1361/anaconda3/envs/meekovina/bin/python}
+SMINA=${SMINA:-$(command -v smina || echo smina)}   # external binary; see envs/README.md
+GNINA=${GNINA:-$(command -v gnina || echo gnina)}   # external binary; see envs/README.md
+MEEKOPY=${MEEKOPY:-${CONDA_BASE:-$HOME/anaconda3}/envs/ged-vina/bin/python}
 EXH=${EXH:-8}
 VINA_EXH=${VINA_EXH:-16}
 SEED=${SEED:-42}

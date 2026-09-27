@@ -32,7 +32,7 @@ SGEDiff/print_ring_ratio-comparable view; it is not gated against anything since
 for it exists to check against.
 
 CONFIRMED AGAINST THE OFFICIAL KGDIFF REPO (2026-09-11, user-requested diff). Compared
-/home/ktori1361/KGDiff/scripts/evaluate_diffusion.py against this repo's copy of the same file:
+KGDiff's own scripts/evaluate_diffusion.py (https://github.com/CMACH508/KGDiff) against this repo's copy of the same file:
 `print_ring_ratio` is byte-identical in both (only comments/formatting differ elsewhere in the
 file). That confirms ring{s}_mol_pct is not a guess at what print_ring_ratio does -- it IS what
 that shipped, public function computes, verified against its actual source. But print_ring_ratio's

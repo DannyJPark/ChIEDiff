@@ -16,7 +16,7 @@ PoseCheck's own loader and the same two prolif patches eval_posecheck.py uses, s
 handling is identical.
 
 Run with the posecheck env interpreter:
-    /home/ktori1361/anaconda3/envs/posecheck/bin/python scripts/eval_prolif_counts.py \
+    "$CONDA_BASE/envs/ged-posecheck/bin/python" scripts/eval_prolif_counts.py \
         --dir eval_out/vina_fixed --pocket 0
 
 Input  : <dir>/manifest.csv + <dir>/sdf/pocket<NNN>.sdf
