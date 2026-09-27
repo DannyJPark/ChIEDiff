@@ -1,0 +1,48 @@
+# Written from scratch, not inherited. Everything here is build output or a runtime
+# artifact. Nothing is re-included with `!`: if a path is not listed below it ships,
+# which is the property that makes the shipped set auditable.
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Run artifacts. Training and sampling write here; none of it is source.
+logs/
+logs_diffusion/
+slurm_logs/
+checkpoints/
+*.lmdb
+*.lmdb-lock
+*_filename_mapping.pkl
+
+# Downloaded archive contents (weights, samples, receptors). tools/download_archive.py
+# populates these; they carry their own DOI and are never committed.
+archive/
+
+# Generated figures. Every figure except figures/main_figure_fixed2.png is produced by a
+# script in figure_build/; the exception is declared in figure_build/figures/PROVENANCE.md.
+figure_build/figures/generated/
+figure_build/figures/panels/*.png
+
+# LaTeX build products of the table harness
+tables/*.aux
+tables/*.log
+tables/*.out
+tables/*.toc
+tables/*.fls
+tables/*.fdb_latexmk
+tables/*.synctex.gz
+
+# Editors / OS
+.vscode/
+.idea/
+.claude/
+*.swp
+*~
+.DS_Store
