@@ -37,7 +37,7 @@ not of the visible part.
 Reads:  results/comparison/figures/rsg_ecdf_per_molecule.csv.gz   (y; from build_rsg_ecdf.py)
         results/pose_fidelity/master.csv                          (x, model rows)
         results/reference_protocol/self_redock_v4/pocket*.csv     (x, Reference row)
-Writes: paper/figures/unused_figures/fig2c_pose_energy_map{,_gnina,_vina,_purevina}{,_facets}.{png,pdf}
+Writes: paper/figure_build/figures/panels/fig2c_pose_energy_map{,_gnina,_vina,_purevina}{,_facets}.{png,pdf}
 
 Usage:
     python scripts/build_pose_energy_map.py
@@ -59,7 +59,7 @@ from scipy.ndimage import gaussian_filter                                # noqa:
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-OUT_DIR = 'paper/figures/unused_figures'   # not in the manuscript; results/ keeps only data
+OUT_DIR = 'paper/figure_build/figures/panels'   # Main Fig. 3 panel (b); assembled by paper/figure_build/consistency_combined/combine.py
 GAP_CACHE = 'results/comparison/figures/rsg_ecdf_per_molecule.csv.gz'
 MASTER = 'results/pose_fidelity/master.csv'
 REF_DIR = 'results/reference_protocol/self_redock_v4'

@@ -42,7 +42,7 @@ scoring it with the CNN again asks the selector to grade its own choice. A small
 
 Reads:  the same sources as scripts/build_main_table.py (registry configs/models.json)
 Writes: results/comparison/figures/rsg_ecdf_per_molecule.csv.gz   (per-molecule cache)
-        paper/figures/unused_figures/fig2a_rsg_ecdf{,_vinardo,_gnina}.{png,pdf}
+        paper/figure_build/figures/panels/fig2a_rsg_ecdf{,_vinardo,_gnina}.{png,pdf}
 
 Usage:
     python scripts/build_rsg_ecdf.py                 # re-measure, then draw all three panels
@@ -61,7 +61,7 @@ DRAW_TITLE = False          # the combined figure supplies the panel title
 # at 4 pt. These are chosen so the axis text lands near 7.5 pt (labels) and 6.5 pt (ticks).
 AXIS_LABEL_SIZE = 19
 TICK_LABEL_SIZE = 16
-OUT_DIR = 'paper/figures/unused_figures'   # not in the manuscript; results/ keeps only data
+OUT_DIR = 'paper/figure_build/figures/panels'   # Main Fig. 3 panel (a); assembled by paper/figure_build/consistency_combined/combine.py
 CACHE = 'results/comparison/figures/rsg_ecdf_per_molecule.csv.gz'
 
 # cache column stem -> (display name, output file suffix, x-axis upper limit)

@@ -17,7 +17,7 @@ import fitz
 
 ROOT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
-SRC = ROOT / "paper" / "figures" / "unused_figures"
+SRC = ROOT / "paper" / "figure_build" / "figures" / "panels"
 A_DEFAULT = SRC / "fig2a_rsg_ecdf_vinardo.pdf"
 B_DEFAULT = SRC / "fig2c_pose_energy_map_gnina.pdf"
 TEXTWIDTH = 372.0          # sn-jnl \textwidth, measured
