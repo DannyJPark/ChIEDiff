@@ -1,0 +1,43 @@
+# Installed before any content lands, so the secret scan is active for every commit
+# that carries code. The motivating case is real: the working repository this release was
+# distilled from has GitHub personal access tokens embedded in its .git/config remotes.
+#
+#   pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # The shipped data payload is ~39 MB across many files; no single file should be
+      # anywhere near 25 MB. A large file here means a checkpoint or an LMDB leaked in.
+      - id: check-added-large-files
+        args: ['--maxkb=25000']
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+
+  - repo: local
+    hooks:
+      # The model name is provisional. It may appear only at the sites listed in the
+      # script; anywhere else and a rename becomes a repository-wide search again.
+      - id: model-name-guard
+        name: model name appears only at declared sites
+        entry: python3 tools/check_no_model_name.py
+        language: system
+        pass_filenames: false
+
+      # Placeholder DOIs and unresolved work markers must not reach a submitted release.
+      # The manuscript this accompanies once compiled a fake grant number into a PDF;
+      # this hook is the cheap version of not repeating that.
+      - id: placeholder-guard
+        name: no unreplaced placeholders
+        entry: python3 tools/check_placeholders.py
+        language: system
+        pass_filenames: false
