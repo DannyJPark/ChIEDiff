@@ -1,9 +1,13 @@
 # Attribution and third-party licences
 
-This repository is MIT-licensed (see `LICENSE`). Some files are derived from upstream
-projects and keep their own terms. Every licence below was verified against a primary
-source, not against a README badge — two of them are easy to get wrong, and both traps
-are recorded here so the next person does not repeat the check.
+This repository is MIT-licensed. `LICENSE` holds the plain MIT text and nothing else, so
+that automated licence detection recognises it; the exceptions live here instead. The one
+that matters: `gated_energy_diffusion/utils/reconstruct.py` is GPL-2.0 and keeps its own
+header. Read this file before redistributing.
+
+Every licence below was verified against a primary source, not against a README badge — two
+of them are easy to get wrong, and both traps are recorded so the next person does not repeat
+the check.
 
 ## Per-file provenance
 
