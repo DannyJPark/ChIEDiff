@@ -1,0 +1,111 @@
+# Training configuration for the chemistry-gated Vina interaction-energy objective.
+#
+# This is the configuration that produced the published model. It trains the diffusion
+# denoiser, the atom-type head, and the affinity head jointly, and adds the gated
+# intermolecular energy evaluated at the predicted clean coordinates.
+#
+# Run:  python bin/train.py --config configs/train.yml --tag <run name>
+
+data:
+  name: pl
+  path: ./data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb
+  split: ./data/crossdocked_pocket10_pose_split.pt
+  transform:
+    ligand_atom_mode: add_aromatic
+    random_rot: False
+
+model:
+  model_mean_type: C0
+  beta_schedule: sigmoid
+  beta_start: 1.e-7
+  beta_end: 2.e-3
+  v_beta_schedule: cosine
+  v_beta_s: 0.01
+  num_diffusion_timesteps: 1000
+  loss_v_weight: 100.
+  loss_exp_weight: 1.
+  # The raw energy measures about -10 per graph on ground-truth poses, so at this weight it
+  # contributes about -0.50 per graph -- roughly a fifth of the coordinate loss. The weight
+  # is additionally ramped over training; see vdw_ramp_iters below.
+  loss_vdw_weight: 0.05
+
+  # Gate the hydrophobic and hydrogen-bond terms by AutoDock Vina's OWN atom-typing rules
+  # (gated_energy_diffusion/utils/vina_types.py, ported from Vina's atom_constants.h and
+  # model.cpp::assign_types):
+  #   hydrophobic fires iff BOTH atoms are xs_is_hydrophobic
+  #     -> a carbon with NO heteroatom neighbour (C_H), or F/Cl/Br/I. A carbon bonded to
+  #        N/O/S/P or to a halogen is C_P and does NOT count.
+  #   h-bond fires iff xs_h_bond_possible: (donor & acceptor) in either direction
+  #     -> never acceptor-acceptor (e.g. ligand C=O ... backbone C=O) or donor-donor.
+  #   steric (gauss1/gauss2/repulsion) applies to every pair.
+  # Surface distance d = r - (R_i + R_j) uses Vina's xs_radius (C 1.9, N 1.8, O 1.7, ...),
+  # NOT Bondi radii -- this puts the H-bond ramp (active for d in [-0.7, 0]) at
+  # r in [2.8, 3.5] A for an N...O pair. Getting this wrong moves the ramp to
+  # [2.37, 3.07] A and changes per-atom gradient direction for a large fraction of atoms.
+  #
+  # Setting this False does NOT switch the terms off, it makes them fire on EVERY pair,
+  # which is the ungated behaviour the published model does not use. Keep it True.
+  vina_type_gating: True
+
+  sample_time_method: symmetric
+  use_classifier_guide: True    # train the affinity head jointly, for sampling guidance
+
+  time_emb_dim: 0
+  time_emb_mode: simple
+  center_pos_mode: protein
+
+  node_indicator: True
+  model_type: uni_o2
+  num_blocks: 1
+  num_layers: 9
+  hidden_dim: 128
+  n_heads: 16
+  edge_feat_dim: 4
+  num_r_gaussian: 20
+  knn: 32
+  num_node_types: 8
+  act_fn: relu
+  norm: True
+  cutoff_mode: knn
+  ew_net_type: global
+  num_x2h: 1
+  num_h2x: 1
+  r_max: 10.
+  x2h_out_fc: False
+  sync_twoup: False
+
+train:
+  seed: 2021
+  # batch_size 2 with 2 accumulation steps is gradient-equivalent to an unaccumulated
+  # batch of 4 and fits a 24 GB card; a batch of 4 spikes to about 16.8 GB on a
+  # large-pocket draw.
+  batch_size: 2
+  num_workers: 0
+  n_acc_batch: 2
+  # Effectively unbounded: the run is stopped by wall time or by hand, and the published
+  # checkpoint is the best-validation one (iteration 1,195,000).
+  max_iters: 100000000
+  # omega_m = loss_vdw_weight * min(it / vdw_ramp_iters, vdw_ramp_cap)
+  #         = 0.05 * min(it / 200000, 1)
+  # Applied in the training loop, not inside the model: the optimizer iteration is not
+  # available to the model's loss method.
+  vdw_ramp_iters: 200000
+  vdw_ramp_cap: 1.0
+  val_freq: 1000
+  # Gaussian noise added to pocket coordinates, seen by BOTH the network input and the
+  # energy branch. The quantity minimised is therefore the pair potential convolved with a
+  # 0.1 A Gaussian in the surface distance d, while validation evaluates it on the
+  # unperturbed pocket.
+  pos_noise_std: 0.1
+  max_grad_norm: 8.0
+  optimizer:
+    type: adam
+    lr: 1.e-3
+    weight_decay: 0
+    beta1: 0.95
+    beta2: 0.999
+  scheduler:
+    type: plateau
+    factor: 0.95
+    patience: 15
+    min_lr: 1.e-5

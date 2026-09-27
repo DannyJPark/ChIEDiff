@@ -1,0 +1,63 @@
+# PoseCheck strain and clash measurement, and ProLIF interaction fingerprints.
+#
+# TWO RULES, both load-bearing:
+#
+# 1. Invoke this environment by ABSOLUTE INTERPRETER PATH, never `conda activate` from a
+#    ged-train shell:
+#        "$CONDA_BASE/envs/ged-posecheck/bin/python" scripts/eval_posecheck.py ...
+#    Its RDKit is 2026.03.4; ged-train's is 2024.03.6, and the published PLIP-side numbers
+#    were measured with the older one. A leak silently changes them.
+#
+# 2. prolif is pinned to 2.2.0 and the pin is enforced twice, because prolif is a pip
+#    package and a conda pin alone does not stop `pip install` from moving it:
+#        $CONDA_PREFIX/conda-meta/pinned                 ->  prolif ==2.2.0
+#        $CONDA_PREFIX/etc/conda/activate.d/pin_prolif.sh ->  export PIP_CONSTRAINT=...
+#    Reproduce both after creating the environment; see the commands at the bottom.
+#
+#    prolif 2.1.0 changed the hydrophobic SMARTS definition, excluding aromatic carbon
+#    bonded to N/O/F. Same crystal ligands, everything else fixed: 2.04 hydrophobic
+#    contacts per molecule pre-2.1 versus 1.44 at 2.1+. Upgrading invalidates every ProLIF
+#    column in every table, and re-measuring only part of a table mixes two definitions
+#    inside it.
+#
+# Note also that this environment pulls in a CPU-only torch as a PoseCheck dependency. It
+# is unrelated to the training torch. Under torch >= 2.6 the default for `weights_only`
+# changed, which is why the .pt loaders in scripts/ pass it explicitly.
+
+name: ged-posecheck
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10.20
+  - numpy=2.2.6
+  - pandas=2.3.3
+  - scipy=1.15.3
+  - pip
+  - pip:
+      - rdkit==2026.3.4
+      - posecheck==1.3.1
+      # PINNED. See the header. Do not move this without re-measuring every ProLIF arm.
+      - prolif==2.2.0
+      - MDAnalysis==2.9.0
+      # PoseCheck shells out to `hydride` for protonation -- it hardcodes that command and
+      # ignores its own reduce_path argument. PLIP uses Open Babel instead, so the two
+      # instruments disagree on absolute interaction counts by construction. Within each
+      # instrument every model gets identical treatment, so model-vs-model comparison is
+      # valid; absolute counts must never be compared ACROSS the two instruments.
+      - hydride==1.2.3
+      - biotite==1.2.0
+      - biopython==1.87
+
+# After `conda env create -f envs/environment-posecheck.yml`, reproduce the double pin:
+#
+#   P="$(conda info --base)/envs/ged-posecheck"
+#   echo 'prolif ==2.2.0' > "$P/conda-meta/pinned"
+#   printf 'prolif==2.2.0\n' > "$P/pip-constraints.txt"
+#   mkdir -p "$P/etc/conda/activate.d"
+#   cat > "$P/etc/conda/activate.d/pin_prolif.sh" <<'EOF'
+#   # Keep prolif at the version every ProLIF number in the published tables was measured with.
+#   export PIP_CONSTRAINT="$CONDA_PREFIX/pip-constraints.txt"
+#   EOF

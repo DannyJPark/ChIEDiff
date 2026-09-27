@@ -1,0 +1,30 @@
+# PoseBusters physical-validity checks.
+#
+# Isolated from ged-train because PoseBusters force-upgrades RDKit, and ged-train's
+# 2024.03.6 is the version the PLIP-side numbers were measured with. Note this environment
+# resolves RDKit 2026.03.3 while ged-posecheck resolves 2026.03.4 -- two different RDKits,
+# both contributing cells to the published tables, listed as two rows in the manuscript's
+# instrument table.
+#
+# THREAD BUDGET. The PoseBusters energy check uses every CPU on the node by default. Under
+# per-molecule parallelism that is a ~9x slowdown from oversubscription, so the workers pass
+# a single-thread configuration. The single-thread and all-thread results are identical at
+# seed 42; only the wall clock differs. See configs/posebusters_dock_1thread.yml.
+#
+# One pathological molecule can stall an entire pocket for 15+ minutes in the energy check,
+# which is why the worker parallelises per molecule with a timeout rather than per pocket.
+
+name: ged-posebusters
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10.20
+  - numpy=2.2.6
+  - pandas=2.3.3
+  - pip
+  - pip:
+      - rdkit==2026.3.3
+      - posebusters==0.6.5

@@ -1,0 +1,30 @@
+# AutoDock Vina Python API docking and Meeko round-trip RMSD.
+#
+# Separate from ged-train for one reason: this needs meeko 0.6.1 for its atom-index
+# round-trip, and ged-train's meeko 0.1.dev3 must not be upgraded. Everything else here
+# matches ged-train.
+#
+# Compare poses with RDKit CalcRMS, never by atom index: the PDBQT round trip does not
+# preserve ordering.
+
+name: ged-vina
+
+channels:
+  - pytorch
+  - pyg
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.9.23
+  - numpy=1.23.1
+  - pandas=2.1.4
+  - scipy=1.13.1
+  - pyyaml
+  - tqdm
+  - pip
+  - pip:
+      - rdkit==2024.3.6
+      - vina==1.2.2
+      # The whole reason this environment exists.
+      - meeko==0.6.1

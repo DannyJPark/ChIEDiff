@@ -1,0 +1,2414 @@
+{
+  "schema_version": 1,
+  "_comment": [
+    "SINGLE model registry for all five comparison table families. Supersedes the per-family",
+    "configs (pose_fidelity_models.json, delta_score_models.json), which stay on disk during",
+    "Phase A and are reproduced from this file by scripts/model_registry.py -- run",
+    "scripts/check_registry_sync.py to prove the reproduction is exact.",
+    "",
+    "WHY: the same model was known by up to six different strings. Our main model is",
+    "'vina_fixed' (eval_out dir), 'vina_fixed_best' (PLIP tag), 'vina_fixed_on' (delta tag),",
+    "'Ours (vina_fixed_best)' (F1 label), 'Ours (guidance ON)' (F4 label) and 'Ours (Vina loss)'",
+    "(F3 label). Joining families by display string was impossible. Every family-specific string",
+    "now lives under ids.*, and nothing joins on a label.",
+    "",
+    "FIELDS",
+    "  id        stable key, never rendered",
+    "  tier      reference | core | extended | ablation | quarantine",
+    "  order     row order within a table (ascending). Deterministic, unlike sorting by a metric.",
+    "  ids.*     per-family identifiers. null = this family has no directory/tag for the model.",
+    "  sources   'default' plus per-family overrides. They legitimately differ: IPDiff's F1/F2",
+    "            read the _chem_ variant while F3 reads the plain one.",
+    "  counts    namespaced per family ON PURPOSE. vina_fixed is 9857 for pose (exported) and",
+    "            8340 for delta (docking-successful). Collapsing them would break the n_mols",
+    "            assertion in delta_score_common.load_model_pockets, the strongest data-integrity",
+    "            check in this repo. Each count carries a `basis` saying WHAT it counts: 'exported_sdf' (molecules in dir/sdf/) vs 'docking_successful'. Comparing n_mols across two different bases is meaningless, which is why check 5 of scripts/check_registry.py compares only within a basis.",
+    "  families  declared availability, never inferred:",
+    "              ok             measured and reportable",
+    "              not_measured   no data on disk; re-measuring is out of scope this pass",
+    "              not_applicable structurally impossible (protocol or data shape forbids it)",
+    "              deferred       data exists but wiring the row was postponed",
+    "              underpowered   measured, but n too small to carry a claim",
+    "              retired        measured and KEPT on disk, but deliberately excluded from reporting by user decision (pignet_fixed / pgdiff_fixed, 2026-08-05). This is the distinction tier alone cannot make: novdw is also tier 'ablation' but IS reported.",
+    "  docked_policy  how docking success is decided. Replaces the ad-hoc CONNECTED_IS_DOCKED set",
+    "                 and the \"'dock' if any(...) else 'minimize'\" sniffing duplicated in three",
+    "                 builders.",
+    "",
+    "POPULATION RULE: every family aggregates DOCKING-SUCCESSFUL molecules only, no exceptions.",
+    "External papers ship .pt files already filtered that way, so including our failures would",
+    "evaluate us on a wider population. docked <=> connected holds here, so this filter selects",
+    "the same set as 'connected only'.",
+    "",
+    "RETIRED 2026-08-05 (user decision): pignet_fixed and pgdiff_fixed are tier 'ablation' and no",
+    "longer appear in any main table. Their eval_out/ outputs and source .pt files are KEPT, so",
+    "restoring them is a tier change, not a re-measurement.",
+    "LABELS UNIFIED 2026-08-21: every family now renders the canonical `label`. The families.<f>.legacy_label pins were a migration aid -- they held each table at its published string so a roster change could be verified as rows-only before any rename landed. That verification is done, so they are gone.",
+    "REMOVED 2026-08-21 (user decision D9): DrugGPS, ResGen and DiffSBDD. Their ligand_filename",
+    "has no pocket-dir prefix (n_pockets = 0), so per-target metrics and off-target assignment are",
+    "both impossible, and they appear in no family but F1.",
+    "F4 ROSTER EXTENDED 2026-09-02: ipdiff, molcraft and pidiff_pub added to the delta family so all five families share one 9-model roster. Their off-target selections were appended to the EXISTING configs/offtarget_assignment_seed2027.json; because n_per_pocket = 0 no RNG draw happens, the pocket->off-target map is model-independent, and none of the three adds a new missing pocket, every previously docked row is bit-identical and common_pockets stays at 95.",
+    "F4 ROSTER ARM 2026-09-03: families.delta.report_roster + the `roster` arm. The paper table now aggregates over the 99 pockets the nine reported models share (only pocket 46 is dropped, and it is empty for both PIDiff and ours), instead of the 95 that AR and DecompDiff -- shown nowhere -- were also required to cover. No re-docking: every model was always docked on all 100 pockets and the restriction was applied at aggregation time."
+  ],
+  "canonical_pockets": {
+    "source": "analysis/nci_benchmark/test_pockets.json",
+    "sha256": "fa4a49fe58ebbaf588d031f73b907857d6ad0a68e4d6736e16ce5d4d47d48421",
+    "note": "Three code paths derive the pocket order (eval_export_sdf.canonical_ligand_files, build_comparison_tables.build_pocket_maps, offtarget_assignment_seed2027.json). They already AGREE -- the sha256 below matches test_pockets_sha256 in the off-target assignment -- so unification is an assertion to add, not a conflict to resolve."
+  },
+  "families": {
+    "sbdd": {
+      "out": "results/comparison/f1_sbdd",
+      "builder": "scripts/build_comparison_tables.py",
+      "population_enforced": true
+    },
+    "pose": {
+      "out": "results/comparison/f2_pose_fidelity",
+      "builder": "scripts/build_rmsd_summary.py",
+      "legacy_registry": "configs/pose_fidelity_models.json",
+      "protocol": {
+        "box_center_mode": "reference_ligand_autobox",
+        "box_note": "smina/gnina --autobox_ligand <crystal ligand>; vina_meeko ref arm uses the same crystal ligand centroid with a fixed 20A cube. The min/score modes take NO box (--minimize / --score_only relax or score in place), which is what makes them box-independent.",
+        "modes": [
+          "dock",
+          "min",
+          "score"
+        ],
+        "vinardo_note": "smina --scoring vinardo is the cross-scoring-function control: same binary, same Monte-Carlo search, same box, same seed, same exhaustiveness, same atom typing as the smina Vina arm -- the scoring function is the ONLY variable. Vinardo affinities are NOT on the Vina kcal/mol scale (gauss2 dropped, steric/hydrophobic/hbond terms and weights refit), so rank within the column and never difference across columns.",
+        "exhaustiveness": 8,
+        "num_modes": 1,
+        "seed": 42,
+        "vina_meeko_exhaustiveness": 16,
+        "engines": [
+          "smina",
+          "gnina",
+          "smina_vinardo",
+          "vina_meeko"
+        ]
+      },
+      "population_enforced": true
+    },
+    "nci": {
+      "out": "results/comparison/f3_nci",
+      "builder": "scripts/build_nci_summary.py",
+      "note": "D7: absolute contact counts are the main body. IFP reproduction (interaction_tables) moved to appendix/ifp -- its roster cannot match, and eval_plip_atom/ covers 15 tags against eval_plip/'s 37.",
+      "population_enforced": true
+    },
+    "delta": {
+      "out": "results/comparison/f4_delta_score",
+      "builder": "scripts/build_delta_score.py",
+      "legacy_registry": "configs/delta_score_models.json",
+      "assignment": "configs/offtarget_assignment_seed2027.json",
+      "seed": 2027,
+      "n_per_pocket": 0,
+      "population_enforced": true,
+      "n_per_pocket_note": "0 = every docking-successful molecule, matching the frozen configs/offtarget_assignment_seed2027.json. Was 20 until 2026-09-02, a stale value from the superseded n=20 run whose tables live in results/comparison/delta_score_n20/.",
+      "report_roster": [
+        "reference",
+        "pocket2mol",
+        "targetdiff",
+        "ipdiff",
+        "alidiff",
+        "molcraft",
+        "pidiff_retrain",
+        "kgdiff",
+        "ours_vina"
+      ],
+      "report_roster_note": "Registry ids of the models the MANUSCRIPT table shows. build_delta_score.py emits an extra arm `roster` whose pocket set is the intersection over THESE models only. The `common` arm keeps intersecting over every delta model, which is right for the internal report but wrong for the paper: AR and DecompDiff appear in no manuscript table, yet their coverage gaps at pockets 25/58/82/83 shrank every reported row from 99 pockets to 95. Must stay in sync with ROSTER in paper/tables/build_revision_tables.py -- it moved there from paper/make_tables.sh in the 2026-09-14 paper/ restructure, and make_tables.sh is now only a wrapper. scripts/check_paper_tables.py asserts that, reading the roster out of paper/data/table_specs.json which the generator writes as it runs. 2026-09-10: pidiff_pub -> pidiff_retrain here and in the generator together, since check_paper_tables.py asserts the two match. Position in the list is unchanged, so the roster pocket set is still the intersection over the same nine SLOTS."
+    },
+    "quality": {
+      "out": "results/comparison/f5_pose_quality",
+      "builder": "scripts/aggregate_posecheck.py",
+      "note": "D6: PoseCheck only. PoseBusters was measured for 5 models and cannot carry a comparable roster; it lives in appendix/posebusters.",
+      "population_enforced": true
+    }
+  },
+  "unregistered_allowlist": [
+    "eval_plip_atom/*_noguide",
+    "eval_plip/vina_noguide",
+    "eval_plip/pignet_noguide",
+    "eval_plip/pidiff_noguide",
+    "eval_plip/pgdiff_noguide",
+    "eval_plip/pignet_fixed_best_noguide",
+    "eval_out/*_vinardo_dock",
+    "eval_out/*_gnina_dock",
+    "eval_plip/*_vinardo_dock",
+    "eval_plip/*_gnina_dock",
+    "eval_plip/*_dock",
+    "eval_plip/*_minimize",
+    "results/offtarget/pidiff"
+  ],
+  "models": [
+    {
+      "id": "reference",
+      "label": "Reference (native)",
+      "tier": "reference",
+      "order": 0,
+      "group": "reference",
+      "ids": {
+        "pt_stem": "crossdocked_test_vina_docked",
+        "eval_out": "native",
+        "plip_tag": "NATIVE",
+        "plip_atom_tag": "NATIVE",
+        "delta_tag": "reference"
+      },
+      "sources": {
+        "default": "results/sampling_results/crossdocked_test_vina_docked.pt"
+      },
+      "layout": "single",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "delta": {
+          "n_mols": 100,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "Crystal ligand. Upper bound on specificity in both delta-score papers.",
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "note": "enters as the self-redock CEILING row, not as a competitor",
+          "tables": [
+            "rmsd"
+          ],
+          "legacy_order": 0
+        },
+        "nci": {
+          "status": "ok",
+          "note": "quote as the ceiling; the energy losses sit ~28% above it",
+          "legacy_order": 0,
+          "legacy_group": "ref",
+          "ifp_order": 0,
+          "tables": [
+            "nci_summary",
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 0
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "not_applicable",
+          "reason": "PoseBusters on crystal ligands validates the PDB, not a model",
+          "legacy_order": 0,
+          "tables": [
+            "posecheck"
+          ]
+        }
+      }
+    },
+    {
+      "id": "cvae",
+      "label": "CVAE (sf1.5)",
+      "tier": "extended",
+      "order": 10,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "CVAE_test_docked_sf1.5",
+        "eval_out": null,
+        "plip_tag": null,
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/sampling_results/CVAE_test_docked_sf1.5.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        },
+        "nci": {
+          "status": "not_measured",
+          "reason": "no eval_plip/ dir"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/; duplicates the story kgdiff/AliDiff already tell"
+        },
+        "quality": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        }
+      }
+    },
+    {
+      "id": "ligan",
+      "label": "liGAN (cvae)",
+      "tier": "extended",
+      "order": 13,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "cvae_vina_docked",
+        "eval_out": null,
+        "plip_tag": null,
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/sampling_results/cvae_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "file stem is cvae_vina_docked but the model is liGAN -- do not confuse with the CVAE row above"
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        },
+        "nci": {
+          "status": "not_measured",
+          "reason": "no eval_plip/ dir"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        }
+      }
+    },
+    {
+      "id": "ar",
+      "label": "AR",
+      "tier": "extended",
+      "order": 11,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "ar_vina_docked",
+        "eval_out": null,
+        "plip_tag": null,
+        "plip_atom_tag": null,
+        "delta_tag": "ar"
+      },
+      "sources": {
+        "default": "results/sampling_results/ar_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "delta": {
+          "n_mols": 9295,
+          "n_pockets": 97,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "Delta Score paper Table 2 (-0.535, best generative) + SBE-Diff Table 2.",
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        },
+        "nci": {
+          "status": "not_measured",
+          "reason": "no eval_plip/ dir"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "row removed from the comparison CSVs on 2026-09-15 (finalised): non-manuscript baseline, original rows kept in results/comparison/_archive_extra_rows/"
+        },
+        "quality": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        }
+      }
+    },
+    {
+      "id": "pocket2mol",
+      "label": "Pocket2Mol",
+      "tier": "core",
+      "order": 12,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "pocket2mol_vina_docked",
+        "eval_out": "pocket2mol",
+        "plip_tag": "pocket2mol",
+        "plip_atom_tag": null,
+        "delta_tag": "pocket2mol"
+      },
+      "sources": {
+        "default": "results/sampling_results/pocket2mol_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": null,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 9831,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "Both delta-score papers (-0.309 / 0.437).",
+      "notes": [
+        "promoted to core by D6: dropping PoseBusters from the main body removed its only gap"
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "legacy_order": 6,
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "not_measured",
+          "reason": "no eval_plip_atom/pocket2mol",
+          "legacy_order": 9,
+          "legacy_group": "ext",
+          "tables": [
+            "nci_summary"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 2
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "not_measured",
+          "reason": "no eval_out/pocket2mol/posebusters -- out of scope under D6",
+          "legacy_order": 9,
+          "tables": [
+            "posecheck"
+          ]
+        }
+      }
+    },
+    {
+      "id": "phardiff",
+      "label": "PharDiff",
+      "tier": "extended",
+      "order": 14,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "PharDiff_vina_dock",
+        "eval_out": "PharDiff",
+        "plip_tag": "PharDiff",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/sampling_results/PharDiff_vina_dock.pt"
+      },
+      "layout": "flat",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "97 pockets / 2079 molecules -- smaller than every other external baseline.",
+        "D8 deferred: F1 currently renders the raw file stem 'PharDiff_vina_dock' as the row label because it had no DISPLAY_NAMES entry. The label here is the fix, to be applied when F1 moves onto this registry.",
+        "PLIP H-bond is the highest of all models (4.70) but ProLIF disagrees -- its H-bonds are long/loose (mean d(D,A) 3.39 A), so do not read the PLIP number as binding strength."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms in eval_out/PharDiff"
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "not_measured",
+          "legacy_order": 11,
+          "legacy_group": "ext",
+          "tables": [
+            "nci_summary"
+          ]
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "not_measured",
+          "reason": "row removed from the comparison CSVs on 2026-09-15 (finalised): non-manuscript baseline, original rows kept in results/comparison/_archive_extra_rows/"
+        }
+      }
+    },
+    {
+      "id": "targetdiff",
+      "label": "TargetDiff",
+      "tier": "core",
+      "order": 20,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "targetdiff_vina_docked",
+        "eval_out": "targetdiff",
+        "plip_tag": "targetdiff",
+        "plip_atom_tag": "targetdiff",
+        "delta_tag": "targetdiff"
+      },
+      "sources": {
+        "default": "results/sampling_results/targetdiff_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": 9036,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 9036,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "Both delta-score papers (-0.382 / 0.335). Canonical diffusion comparator.",
+      "notes": [
+        "also the canonical pocket-order source for eval_export_sdf.canonical_ligand_files"
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "legacy_order": 3,
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "legacy_order": 3,
+          "legacy_group": "ext",
+          "ifp_order": 5,
+          "tables": [
+            "nci_summary",
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 3
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "ok",
+          "posecheck": "ok",
+          "legacy_order": 4,
+          "tables": [
+            "posecheck",
+            "posebusters"
+          ]
+        }
+      }
+    },
+    {
+      "id": "pidiff_pub",
+      "label": "PIDiff",
+      "tier": "core",
+      "order": 21,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "PIDiff_vina_docked_complete",
+        "eval_out": "pidiff",
+        "plip_tag": "pidiff_baseline",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/sampling_results/PIDiff_vina_docked_complete.pt"
+      },
+      "layout": "flat",
+      "docked_policy": "vina_dock",
+      "supersedes": [
+        "PIDiff_vina_docked"
+      ],
+      "counts": {
+        "pose": {
+          "n_mols": 850,
+          "n_pockets": 99,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 850,
+          "n_pockets": 99,
+          "basis": "docking_successful"
+        }
+      },
+      "notes": [
+        "Use _complete.pt: the plain PIDiff_vina_docked.pt has score_only+minimize but NO dock key, while _complete.pt has all 850 dock scores with poses (identical molecules, 850/850 SMILES match).",
+        "PLIP tag is 'pidiff_baseline'. The tag 'pidiff_exact' in eval_plip/ is head1_dock_342k -- OUR model, not this one. Adjacent names, different models.",
+        "850 molecules, median 9/pocket -- the smallest set when it was in the tables. Retired from every table 2026-09-10 (see families.*.waiver); footnote its n if it is ever restored."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "retired",
+          "superseded_by": "pidiff_retrain",
+          "note": "Replaced by pidiff_retrain in the published tables (2026-09-10, user decision). The measurement itself stands and the raw arms are untouched; this row simply no longer carries a `tables` key, so it drops out of every roster in scripts/check_rosters.py. Restore by moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain.",
+          "waiver": "Superseded by pidiff_retrain in the published tables on 2026-09-10 (user decision). Nothing about this measurement was found wrong -- it is the official PIDiff release and its arms stay on disk under eval_out/pidiff, eval_plip/pidiff_baseline and results/offtarget/pidiff. It is retired from all five families (F1/F2/F3/F4/F5) so the retrained row replaces it rather than sitting beside it: pidiff_pub covers 99 pockets at a median of 9 molecules each, pidiff_retrain covers 100 at a median of 90, and molecule-level pooling in one table would weight the public row 10x lighter per pocket. F4 (delta) switched last, once results/offtarget/pidiff_retrain/ was complete on 2026-09-10; f4_delta_score/delta_score_per_mol.csv holds no `pidiff` rows, and tab:f4 / tab:specificity-audit report the retrain (n=8626 on the 99-pocket roster). Reverse by flipping all five back to `ok` and moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain."
+        },
+        "pose": {
+          "status": "retired",
+          "note": "99/100 pockets; flat .pt re-exported after the pocket-renumbering fix Replaced by pidiff_retrain in the published tables (2026-09-10, user decision). The measurement itself stands and the raw arms are untouched; this row simply no longer carries a `tables` key, so it drops out of every roster in scripts/check_rosters.py. Restore by moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain.",
+          "legacy_note": "flat .pt layout; re-exported after the pocket-renumbering fix. Use the _complete.pt: the plain PIDiff_vina_docked.pt has score_only+minimize but NO dock key, while _complete.pt has all 850 dock scores with poses (identical molecules, 850/850 SMILES match). Smallest set -- footnote its n in tables.",
+          "superseded_by": "pidiff_retrain",
+          "waiver": "Superseded by pidiff_retrain in the published tables on 2026-09-10 (user decision). Nothing about this measurement was found wrong -- it is the official PIDiff release and its arms stay on disk under eval_out/pidiff, eval_plip/pidiff_baseline and results/offtarget/pidiff. It is retired from all five families (F1/F2/F3/F4/F5) so the retrained row replaces it rather than sitting beside it: pidiff_pub covers 99 pockets at a median of 9 molecules each, pidiff_retrain covers 100 at a median of 90, and molecule-level pooling in one table would weight the public row 10x lighter per pocket. F4 (delta) switched last, once results/offtarget/pidiff_retrain/ was complete on 2026-09-10; f4_delta_score/delta_score_per_mol.csv holds no `pidiff` rows, and tab:f4 / tab:specificity-audit report the retrain (n=8626 on the 99-pocket roster). Reverse by flipping all five back to `ok` and moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain."
+        },
+        "nci": {
+          "status": "retired",
+          "atom_level": "not_measured",
+          "reason": "no eval_plip_atom/pidiff_baseline",
+          "superseded_by": "pidiff_retrain",
+          "note": "Replaced by pidiff_retrain in the published tables (2026-09-10, user decision). The measurement itself stands and the raw arms are untouched; this row simply no longer carries a `tables` key, so it drops out of every roster in scripts/check_rosters.py. Restore by moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain.",
+          "waiver": "Superseded by pidiff_retrain in the published tables on 2026-09-10 (user decision). Nothing about this measurement was found wrong -- it is the official PIDiff release and its arms stay on disk under eval_out/pidiff, eval_plip/pidiff_baseline and results/offtarget/pidiff. It is retired from all five families (F1/F2/F3/F4/F5) so the retrained row replaces it rather than sitting beside it: pidiff_pub covers 99 pockets at a median of 9 molecules each, pidiff_retrain covers 100 at a median of 90, and molecule-level pooling in one table would weight the public row 10x lighter per pocket. F4 (delta) switched last, once results/offtarget/pidiff_retrain/ was complete on 2026-09-10; f4_delta_score/delta_score_per_mol.csv holds no `pidiff` rows, and tab:f4 / tab:specificity-audit report the retrain (n=8626 on the 99-pocket roster). Reverse by flipping all five back to `ok` and moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain."
+        },
+        "delta": {
+          "status": "retired",
+          "note": "Retired 2026-09-10 once results/offtarget/pidiff_retrain/ was complete (100/100 pockets, 8654 molecules, protocol identical: exhaustiveness 8, cpu 2, seed 2027, protocol_version 1.0). Data stays at results/offtarget/pidiff.",
+          "superseded_by": "pidiff_retrain",
+          "waiver": "Superseded by pidiff_retrain in the published tables on 2026-09-10 (user decision). Nothing about this measurement was found wrong -- it is the official PIDiff release and its arms stay on disk under eval_out/pidiff, eval_plip/pidiff_baseline and results/offtarget/pidiff. It is retired from all five families (F1/F2/F3/F4/F5) so the retrained row replaces it rather than sitting beside it: pidiff_pub covers 99 pockets at a median of 9 molecules each, pidiff_retrain covers 100 at a median of 90, and molecule-level pooling in one table would weight the public row 10x lighter per pocket. F4 (delta) switched last, once results/offtarget/pidiff_retrain/ was complete on 2026-09-10; f4_delta_score/delta_score_per_mol.csv holds no `pidiff` rows, and tab:f4 / tab:specificity-audit report the retrain (n=8626 on the 99-pocket roster). Reverse by flipping all five back to `ok` and moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain."
+        },
+        "quality": {
+          "status": "retired",
+          "posebusters": "ok",
+          "posecheck": "ok",
+          "superseded_by": "pidiff_retrain",
+          "note": "Replaced by pidiff_retrain in the published tables (2026-09-10, user decision). The measurement itself stands and the raw arms are untouched; this row simply no longer carries a `tables` key, so it drops out of every roster in scripts/check_rosters.py. Restore by moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain.",
+          "waiver": "Superseded by pidiff_retrain in the published tables on 2026-09-10 (user decision). Nothing about this measurement was found wrong -- it is the official PIDiff release and its arms stay on disk under eval_out/pidiff, eval_plip/pidiff_baseline and results/offtarget/pidiff. It is retired from all five families (F1/F2/F3/F4/F5) so the retrained row replaces it rather than sitting beside it: pidiff_pub covers 99 pockets at a median of 9 molecules each, pidiff_retrain covers 100 at a median of 90, and molecule-level pooling in one table would weight the public row 10x lighter per pocket. F4 (delta) switched last, once results/offtarget/pidiff_retrain/ was complete on 2026-09-10; f4_delta_score/delta_score_per_mol.csv holds no `pidiff` rows, and tab:f4 / tab:specificity-audit report the retrain (n=8626 on the 99-pocket roster). Reverse by flipping all five back to `ok` and moving the `tables` keys and `ids.delta_tag` back from pidiff_retrain."
+        }
+      }
+    },
+    {
+      "id": "deepicl",
+      "label": "DeepICL",
+      "tier": "extended",
+      "order": 22,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "deepicl_official_vina_docked",
+        "eval_out": "deepicl",
+        "plip_tag": "deepicl",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/deepicl_gen/deepicl_official_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Docked in-house 2026-07-28 (own-bbox exh 16), 9998/10000 docked.",
+        "Shipped as OpenBabel-written SDFs with no explicit H, which made RDKit set noImplicit=True on donor N and zeroed ProLIF HBDon. Fixed by clearing noImplicit + re-sanitising before AddHs; PLIP was never affected because it re-protonates the ligand itself."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "not_measured",
+          "legacy_order": 8,
+          "legacy_group": "ext",
+          "tables": [
+            "nci_summary"
+          ]
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "not_measured",
+          "reason": "row removed from the comparison CSVs on 2026-09-15 (finalised): non-manuscript baseline, original rows kept in results/comparison/_archive_extra_rows/"
+        }
+      }
+    },
+    {
+      "id": "decompdiff",
+      "label": "DecompDiff",
+      "tier": "extended",
+      "order": 23,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "decompdiff_vina_docked",
+        "eval_out": null,
+        "plip_tag": null,
+        "plip_atom_tag": null,
+        "delta_tag": "decompdiff"
+      },
+      "sources": {
+        "default": "results/decompdiff_gen/decompdiff_vina_docked.pt"
+      },
+      "layout": "flat",
+      "docked_policy": "vina_dock",
+      "supersedes": [
+        "decompdiff_vina_docked_pose_checked",
+        "decompdiff_ref_vina_docked_pose_checked"
+      ],
+      "counts": {
+        "delta": {
+          "n_mols": 7196,
+          "n_pockets": 99,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "SBE-Diff Table 2 (0.354). Decomposed priors are pocket-substructure aware.",
+      "notes": [
+        "the *_ref_* variant dockes against the crystal-ligand box = off-target by our own-bbox convention; never show it as a second row"
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        },
+        "nci": {
+          "status": "not_measured",
+          "reason": "no eval_plip/ dir"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "row removed from the comparison CSVs on 2026-09-15 (finalised): non-manuscript baseline, original rows kept in results/comparison/_archive_extra_rows/"
+        },
+        "quality": {
+          "status": "not_measured",
+          "reason": "no eval_out/ dir"
+        }
+      }
+    },
+    {
+      "id": "ipdiff",
+      "label": "IPDiff",
+      "tier": "extended",
+      "order": 24,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "ipdiff_official_chem_vina_docked",
+        "eval_out": "ipdiff",
+        "plip_tag": "ipdiff",
+        "plip_atom_tag": null,
+        "delta_tag": "ipdiff"
+      },
+      "sources": {
+        "default": "results/ipdiff_official_gen/ipdiff_official_chem_vina_docked.pt",
+        "nci": "results/ipdiff_official_gen/ipdiff_official_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": 9797,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 9012,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "notes": [
+        "IPDiff != PIDiff -- different models, never merge them in a table.",
+        "PER-FAMILY SOURCE SPLIT, and it is deliberate: F1/F2 read the _chem_ variant (it carries chem_results, so QED/SA are not blank), F3 reads the plain merged one whose p<NNN>_m<MMMM> positions match eval_plip/ipdiff. Same alignment, different extra fields.",
+        "The official release carries no vina field at all; docked in-house (own-bbox exh 16) and merged by ipdiff_merge_docking.py. Do NOT use consolidate_docking.py's output for the join -- it drops 3 timeout molecules in id39 and shifts that pocket's positions."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "note": "no smina/ arm -- the smina(Vina) column was retired 2026-08-05 anyway",
+          "legacy_order": 9,
+          "legacy_note": "Official IPDiff samples, docked IN-HOUSE (own-bbox exh 16) then merged by ipdiff_merge_docking.py -- the raw release carries no vina field at all. Use the _chem_ variant: identical alignment to ipdiff_official_vina_docked.pt (100 pockets, 10000 entries, 9797 with a mol, 9012 docked) but it also carries chem_results. IPDiff != PIDiff. Added 2026-08-05.",
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "not_measured",
+          "legacy_order": 6,
+          "legacy_group": "ext",
+          "ifp_order": 8,
+          "tables": [
+            "nci_summary",
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 9,
+          "note": "Docked 2026-09-02 with the frozen seed-2027 assignment. Reads the _chem_ source like F1/F2."
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "not_measured",
+          "legacy_order": 7,
+          "tables": [
+            "posecheck"
+          ]
+        }
+      }
+    },
+    {
+      "id": "molcraft",
+      "label": "MolCRAFT",
+      "tier": "extended",
+      "order": 25,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "molcraft_vina_docked",
+        "eval_out": "molcraft",
+        "plip_tag": "molcraft",
+        "plip_atom_tag": null,
+        "delta_tag": "molcraft"
+      },
+      "sources": {
+        "default": "results/molcraft_gen/molcraft_vina_docked.pt",
+        "pose": "results/sampling_results/molcraft_vina_docked_pose_checked.pt",
+        "nci": "results/sampling_results/molcraft_vina_docked_pose_checked.pt"
+      },
+      "layout": "flat",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": null,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 9667,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "notes": [
+        "The raw sampling .pt stores vina['dock'] as a DICT where every other model stores a ranked list[dict]; molcraft_wrap.py normalises each stage to a one-element list. F1 reads the wrapped copy.",
+        "Never cross-cite our ProLIF hydrophobic against MolCRAFT Table 4: their Reference hydrophobic 5.06 is a pre-prolif-2.1 value and the SMARTS changed.",
+        "layout corrected grouped -> flat 2026-09-02. Both molcraft sources are flat; the field is consumed only by the delta family, so the wrong value was inert until F4 was added."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "legacy_order": 7,
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "not_measured",
+          "legacy_order": 10,
+          "legacy_group": "ext",
+          "tables": [
+            "nci_summary"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 10,
+          "note": "Docked 2026-09-02 with the frozen seed-2027 assignment."
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "not_measured",
+          "legacy_order": 10,
+          "tables": [
+            "posecheck"
+          ]
+        }
+      }
+    },
+    {
+      "id": "alidiff",
+      "label": "AliDiff",
+      "tier": "extended",
+      "order": 26,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "alidiff_vina_docked",
+        "eval_out": "alidiff",
+        "plip_tag": "alidiff",
+        "plip_atom_tag": null,
+        "delta_tag": "alidiff"
+      },
+      "sources": {
+        "default": "results/AliDiff_evaluation_results/alidiff_vina_docked.pt"
+      },
+      "layout": "flat",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": 9236,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 9236,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "Preference alignment explicitly optimises the docking score -- external evidence for the affinity-maximisation/promiscuity hypothesis.",
+      "notes": [
+        "flat {'all_results': [...]}; load_grouped aligns on the FULL ligand_filename, not the directory: 7 CrossDocked test directories host two binding sites each, so a directory-keyed count reports a misleading 93 pockets."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "legacy_order": 8,
+          "legacy_note": "flat {'all_results': [...]} layout, 9236 molecules, all docking-successful. load_grouped aligns on the FULL ligand_filename, not the directory: 7 CrossDocked test directories host two binding sites each, so a directory-keyed count reports a misleading 93 pockets. Added 2026-08 with the Vinardo arm.",
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_summary"
+          ],
+          "legacy_order": 13,
+          "atom_level": "not_measured",
+          "note": "PLIP + ProLIF measured 2026-08-21 with the identical pipeline every other model used (sbatch_plip_tag.sh / sbatch_eval_posecheck.sh / sbatch_eval_prolif_counts.sh, PLIP 3.0.0 in kgdiff, prolif 2.2.0 pinned in posecheck). PLIP covers all 9236 docking-successful molecules; ProLIF 8864 (4.0% lost to strain-relaxation timeouts, within the 0.9-8.4% range seen across models).",
+          "reason": "SUPERSEDED: this entry previously read \"no eval_plip/alidiff -- structurally absent from F3\". That was true until 2026-08-21 and is no longer."
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 6
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck"
+          ],
+          "legacy_order": 12,
+          "posebusters": "not_measured",
+          "note": "PoseCheck measured 2026-08-21, 100/100 pockets, 8864 molecules, no empty CSVs. PoseBusters was NOT run: it is an appendix arm (D6) whose baseline set is only TargetDiff/KGDiff/PIDiff, so one more model does not make it a comparable roster.",
+          "reason": "SUPERSEDED: previously \"no posecheck/ or posebusters/\". posecheck/ now exists; posebusters/ still does not."
+        }
+      }
+    },
+    {
+      "id": "bind",
+      "label": "BInD",
+      "tier": "extended",
+      "order": 27,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "bind_vina_docked",
+        "eval_out": "bind",
+        "plip_tag": "bind",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/bind_gen/bind_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "10 molecules per pocket -- the smallest per-pocket n of any external baseline"
+      ],
+      "families": {
+        "sbdd": {
+          "status": "deferred",
+          "reason": "bind_vina_docked.pt is docked and ready, and BInD already has an F3 row, but D8 postponed adding rows to F1 this pass. Registering it here is all that remains."
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "note": "10 mols/pocket; report n alongside",
+          "atom_level": "not_measured",
+          "caveat": "underpowered",
+          "legacy_order": 12,
+          "legacy_group": "ext",
+          "tables": [
+            "nci_summary"
+          ]
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "not_measured",
+          "tables": [],
+          "tables_reason": "measured, but D8 froze row additions for this pass -- registering it here is all that remains"
+        }
+      }
+    },
+    {
+      "id": "pidiff_retrain",
+      "label": "PIDiff (retrained)",
+      "tier": "core",
+      "order": 28,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "pidiff_retrain_vina_docked",
+        "eval_out": "pidiff_retrain",
+        "plip_tag": "pidiff_retrain",
+        "plip_atom_tag": null,
+        "delta_tag": "pidiff_retrain"
+      },
+      "sources": {
+        "default": "results/pidiff_retrain_gen/pidiff_retrain_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": 8654,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        }
+      },
+      "notes": [
+        "From-scratch retrain of PIDiff -- the public repo (github hello-maker/PIDiff) ships NO checkpoint. This is NOT the official release: that is `pidiff_pub` (eval_out `pidiff`, plip_tag `pidiff_baseline`). Never merge the two in one table.",
+        "Naming: eval_plip/pidiff_exact is head1_dock_342k -- OUR model with PIDiff's vdW loss, not PIDiff. This entry collides with neither.",
+        "Reproduction verified on the Vina arm: mean Vina Dock -8.28 / Score -6.38 / Min -7.40 vs the author's published -8.10 / -6.58 / -7.52, all within 0.21 kcal/mol. Reconstruction yield 86.8% (8676/10000) vs the author's 85.0% (850/1000).",
+        "Selected checkpoint is iteration 31,600 of a 400,000-iteration schedule, because PIDiff's own config saves best-val only and its plateau scheduler (factor 0.6, patience 10, val_freq 100 => patience is 1,000 iters) decays the LR to min_lr by iter 35,000; val loss never improved again over the following ~1,300 validations. At that iteration the vdW curriculum weight is 31600/200000 = 0.158. Footnote this wherever the row appears -- it is not 'PIDiff trained for 400k iters'. Full write-up: /home/ktori1361/PIDiff_repro/REPRO_NOTES.md.",
+        "Trained in the `kgdiff` env (torch 1.11 / PyG 2.0.4), NOT the author-specified torch 1.13.1 / PyG 2.2.0 -- the `targetdiff` env's rdkit needs GLIBCXX_3.4.31, absent on this cluster. Results are statistically comparable, never bitwise.",
+        "Source .pt sha256 1a0f25fa91f3d471875532b437d08331ef861aac34305323a66d92c9cb44b900, copied from /lustre/ktori1361/PIDiff_repro/ on 2026-09-07.",
+        "SURVIVOR population: scripts/dock_and_eval.py drops reconstruction failures, disconnected ('.' in SMILES) molecules and Vina failures BEFORE writing, so sdf/ == 8654 and all_atoms_connected will read 100% by construction. Comparable to pidiff/targetdiff/kgdiff (also 0% fragmented) but NOT to vina_fixed, whose sdf/ retains its failures. The pre-filter triple is 10000 generated / 186 recon-fail / 1138 fragmented.",
+        "GROUPED layout: eval_export_sdf.load_grouped returns a grouped .pt verbatim with no canonical realignment and no warning, so the '[warn] matched no canonical pocket' line can never fire. Slot-by-slot equality against canonical_ligand_files() was asserted explicitly instead.",
+        "pidiff_pub covers 99 pockets (no 046) with a median of 9 molecules/pocket; this row covers 100 with a median of 90. Any paired comparison must restrict to the common 99 AND weight per pocket -- molecule-level pooling weights their pockets 10x less.",
+        "Docked in-house with scripts/dock_and_eval.py: own-bbox box, exhaustiveness 16, docking_mode vina_dock -- the same protocol as every other in-house docking."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok",
+          "note": "Source .pt carries chem_results + vina for all 8654. Replaces pidiff_pub in the F1 roster rather than adding an 18th row, so the expected row COUNT is unchanged."
+        },
+        "pose": {
+          "status": "ok",
+          "note": "pose_rmsd.csv covers 8654/8654 on min+dock for vinardo and gnina with skeleton_iso fallback = 0 (baselines run up to 0.63% fallback, which biases RMSD DOWNWARD). vina_meeko is complete at 100 pockets / 8654 molecules, prep_ok 8654, 0 Jensen violations. smina (Vina scoring) was NOT run for this row -- method_*_smina is `absent` for all 8654.",
+          "tables": [
+            "rmsd"
+          ],
+          "legacy_order": 5
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "not_measured",
+          "tables": [
+            "nci_summary"
+          ],
+          "legacy_order": 5,
+          "legacy_group": "ext"
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 11,
+          "note": "Off-target docking complete 2026-09-10: 100/100 pockets, 8654/8654 molecules scored, 0 errors, protocol read off the existing rows rather than chosen (exhaustiveness 8, cpu 2, seed 2027). common_pockets stayed 95 across the swap because pocket 46 is missing from vina_fixed_on regardless of which PIDiff row is present."
+        },
+        "quality": {
+          "status": "ok",
+          "posecheck": "ok",
+          "posebusters": "ok",
+          "tables": [
+            "posecheck",
+            "posebusters"
+          ],
+          "legacy_order": 6,
+          "note": "Measured 2026-09-08/09 on the same SURVIVOR population as pidiff_pub: both source .pt files are 100% docking-successful and 0% fragmented, so aggregate_posecheck.py's default --docked_only is a no-op for either row and the two are population-comparable. PoseBusters/PoseCheck timeouts (95/178) are excluded from that tool's rates, not counted as failures."
+        }
+      }
+    },
+    {
+      "id": "kgdiff",
+      "label": "KGDiff",
+      "tier": "core",
+      "order": 30,
+      "group": "baseline",
+      "ids": {
+        "pt_stem": "our_vina_score_docked",
+        "eval_out": "kgdiff",
+        "plip_tag": "kgdiff",
+        "plip_atom_tag": "kgdiff",
+        "delta_tag": "kgdiff"
+      },
+      "sources": {
+        "default": "results/sampling_results/our_vina_score_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": 8813,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 8813,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "Direct ancestor of our guidance AND the strongest baseline by Vina Dock (-9.43).",
+      "notes": [
+        "source file is named our_vina_score_docked.pt because the KGDiff repo calls its own model 'ours'; 8813 molecules confirms the identification"
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "legacy_order": 4,
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "legacy_order": 4,
+          "legacy_group": "ext",
+          "ifp_order": 7,
+          "tables": [
+            "nci_summary",
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 5
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "ok",
+          "posecheck": "ok",
+          "legacy_order": 5,
+          "tables": [
+            "posecheck",
+            "posebusters"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ours_noguide",
+      "label": "Ours (Vina Only)",
+      "tier": "core",
+      "order": 40,
+      "group": "ours",
+      "ids": {
+        "pt_stem": "vina_fixed_best_noguide_vina_docked",
+        "eval_out": "vina_fixed_best_noguide",
+        "plip_tag": "vina_fixed_best_noguide",
+        "plip_atom_tag": "vina_fixed_best_noguide",
+        "delta_tag": "vina_fixed_noguide"
+      },
+      "sources": {
+        "default": "results/noguide/vina_fixed_best_noguide/noguide_merged_vina_docked.pt",
+        "nci": "results/noguide/vina_fixed_best_noguide/noguide_grouped.pt",
+        "quality": "results/noguide/vina_fixed_best_noguide/noguide_grouped.pt",
+        "pose": "results/noguide/vina_fixed_best_noguide/noguide_grouped.pt"
+      },
+      "merged_from": [
+        "results/noguide/vina_fixed_best_noguide/vina_fixed_best_noguide_vina_docked.pt",
+        "results/noguide/vina_fixed_best_noguide/noguide_grouped.pt"
+      ],
+      "layout": "grouped",
+      "docked_policy": "connected_is_docked",
+      "counts": {
+        "delta": {
+          "n_mols": 2145,
+          "n_pockets": 100,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "Internal ablation: same checkpoint, guide_mode no_guide. Isolates what the guidance does to selectivity.",
+      "notes": [
+        "docked_policy is connected_is_docked: the F3 source noguide_grouped.pt carries no vina field at all, and it was built by load_samples which drops fragmented molecules first -- so connected == docking-successful by the docked<=>connected identity. This replaces the CONNECTED_IS_DOCKED set in build_nci_summary.py.",
+        "PLIP for this tag must be driven with --samples (per-sample id*/result_*.pt), never --pt: the consolidated .pt has no 'mol', and --pt writes 100 empty pockets silently.",
+        "quality/nci read noguide_grouped.pt while sbdd/delta read the MERGED file, and this split is deliberate. The F3/F5 SDFs were exported from noguide_grouped.pt, so the p<NNN>_m<MMMM> titles that PLIP/prolif/PoseCheck were measured against index into THAT file. Pointing nci/quality at the merged file would renumber those keys and silently empty the tables -- and re-exporting means re-measuring, which the pinned instrument versions forbid.",
+        "sources.default was the consolidated vina_fixed_best_noguide_vina_docked.pt, which carries {chem_results, ligand_filename, vina} and NO mol -- F1 Diversity came out blank because it is the one metric needing a fingerprint. Replaced 2026-08-25 by noguide_merged_vina_docked.pt (scripts/merge_split_pt.py), which is the same 2400 records with mol/smiles attached to the 2145 docked ones: the canonical shape every other model of ours already has. This retired the registry's join: docked_order, whose only user was this model.",
+        "label was 'Ours (guidance OFF)'. Renamed 2026-08-21 to a factorial scheme naming what each arm actually contains (Vina physics loss x kgdiff guidance components), replacing checkpoint-derived names like vina_fixed_best / novdw that only meant something to whoever trained them."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok",
+          "note": "Promoted to a main OVERALL row 2026-08-21. It also remains in the guidance-ablation block, which is the CONTROLLED comparison: that block re-aggregates the guided rows over exactly the pockets this run covers. The main row is the uncontrolled one -- n=2145 against baselines with ~9000 -- so read n."
+        },
+        "pose": {
+          "status": "ok",
+          "tables": [
+            "rmsd"
+          ],
+          "legacy_order": 10,
+          "note": "smina-Vinardo / gnina / vina_meeko measured 2026-08-21 from eval_out/vina_fixed_best_noguide/sdf in a single pass -- same settings as alidiff/molcraft/ipdiff (--box ref, exh 8, vina_meeko exh 16, seed 42, num_modes 1). docked_names.txt comes from docked_policy connected_is_docked: the source has no vina field, and every molecule in it is already the docking-successful set."
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "legacy_order": 7,
+          "legacy_group": "ng",
+          "ifp_order": 11,
+          "tables": [
+            "nci_summary",
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 8
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "not_measured",
+          "legacy_order": 2,
+          "tables": [
+            "posecheck",
+            "posecheck_abl"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ours_vina",
+      "label": "Ours (Vina+Guide)",
+      "label_short": "Ours",
+      "tier": "core",
+      "order": 50,
+      "group": "ours",
+      "ids": {
+        "pt_stem": "vina_fixed_best_vina_docked",
+        "eval_out": "vina_fixed",
+        "plip_tag": "vina_fixed_best",
+        "plip_atom_tag": "vina_fixed_best",
+        "delta_tag": "vina_fixed_on"
+      },
+      "sources": {
+        "default": "results/vina_fixed_best_gen/vina_fixed_best_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": 9857,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        },
+        "delta": {
+          "n_mols": 8340,
+          "n_pockets": 99,
+          "basis": "docking_successful"
+        }
+      },
+      "rationale": "The model under test: Vina energy loss + kgdiff head1 guidance (type_w 100, pos_w 25).",
+      "notes": [
+        "eval_out dir is 'vina_fixed' but the PLIP tag is 'vina_fixed_best' -- the two differ, which is why nothing may join on a bare tag string.",
+        "Quote Vina DOCK, never Vina Score: the Score median beating Dock is part marginal-median artifact and part distorted-geometry exploitation.",
+        "15.4% of its generated molecules are fragmented and therefore undocked. Always report generated / fragmented / docking-successful together.",
+        "label was 'Ours (vina_fixed_best)'. Renamed 2026-08-21 to a factorial scheme naming what each arm actually contains (Vina physics loss x kgdiff guidance components), replacing checkpoint-derived names like vina_fixed_best / novdw that only meant something to whoever trained them."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok"
+        },
+        "pose": {
+          "status": "ok",
+          "legacy_order": 1,
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "legacy_order": 1,
+          "legacy_group": "ours",
+          "ifp_order": 1,
+          "tables": [
+            "nci_summary",
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "ok",
+          "legacy_order": 7
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "ok",
+          "posecheck": "ok",
+          "legacy_order": 1,
+          "tables": [
+            "posecheck",
+            "posebusters",
+            "posecheck_abl"
+          ]
+        }
+      }
+    },
+    {
+      "id": "novdw",
+      "label": "Ours (Guide Only)",
+      "tier": "ablation",
+      "order": 100,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "novdw_gen_vina_docked",
+        "eval_out": "novdw",
+        "plip_tag": "novdw",
+        "plip_atom_tag": "novdw",
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/novdw_gen/novdw_gen_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "counts": {
+        "pose": {
+          "n_mols": 2054,
+          "n_pockets": 100,
+          "basis": "exported_sdf"
+        }
+      },
+      "notes": [
+        "The decisive control: same codebase, loss_vdw_weight = 0. Causal claims about the physics loss are only licensed by ours-vs-novdw, never by ours-vs-targetdiff (different codebase and training setup).",
+        "Fragments 0.0% where every contact-physics loss fragments 15-28% -- this is what makes the loss the cause.",
+        "label was 'No physics (ablation)'. Renamed 2026-08-21 to a factorial scheme naming what each arm actually contains (Vina physics loss x kgdiff guidance components), replacing checkpoint-derived names like vina_fixed_best / novdw that only meant something to whoever trained them."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok",
+          "note": "Promoted to a main OVERALL row 2026-08-21, alongside Ours (Vina Only). It also remains in the physics-ablation block, which is the CONTROLLED comparison (same guidance, same pockets, physics term the only variable). The main row is the uncontrolled one -- n=2054 against baselines with ~9000 -- so read n.",
+          "main_row": true
+        },
+        "pose": {
+          "status": "ok",
+          "note": "smina-default 'score' mode missing (0/100); its dock and min are complete. gnina and smina_vinardo are complete in ALL THREE modes -- gnina score was backfilled 2026-08-24 (100/100 files, 2054 molecules), so the earlier 'smina and gnina score missing' wording was stale and is corrected here 2026-08-25.",
+          "legacy_order": 2,
+          "tables": [
+            "rmsd"
+          ]
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "legacy_order": 2,
+          "legacy_group": "abl",
+          "ifp_order": 4,
+          "tables": [
+            "nci_summary",
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "ok",
+          "posecheck": "ok",
+          "legacy_order": 3,
+          "tables": [
+            "posecheck",
+            "posebusters",
+            "posecheck_abl"
+          ]
+        }
+      }
+    },
+    {
+      "id": "head1_dock_342k",
+      "label": "Ours (vdW Force+Guide)",
+      "tier": "ablation",
+      "order": 101,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "head1_dock_342k_vina_docked",
+        "eval_out": "head1_dock_342k",
+        "plip_tag": "pidiff_exact",
+        "plip_atom_tag": "pidiff_exact",
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/head1_dock_342k/head1_dock_342k_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "PLIP tag 'pidiff_exact' is OURS (the vdW-force arm), NOT the published PIDiff. The published one is tag 'pidiff_baseline' / eval_out/pidiff.",
+        "label was 'Ours (head1_dock_342k)'; renamed 2026-08-21 to say which physics loss the arm carries rather than which checkpoint it came from."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "ok",
+          "section": "physics_ablation"
+        },
+        "pose": {
+          "status": "not_measured"
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "ifp_order": 3,
+          "tables": [
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "not_measured"
+        },
+        "quality": {
+          "status": "ok",
+          "posebusters": "not_measured",
+          "tables": [],
+          "tables_reason": "measured, but D8 froze row additions for this pass -- registering it here is all that remains"
+        }
+      }
+    },
+    {
+      "id": "pignet_fixed",
+      "label": "Ours (PIGNet+Guide)",
+      "tier": "ablation",
+      "order": 102,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "pignet_fixed_best_vina_docked",
+        "eval_out": "pignet_fixed",
+        "plip_tag": "pignet_fixed_best",
+        "plip_atom_tag": "pignet_fixed_best",
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/pignet_fixed_best_gen/pignet_fixed_best_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "RETIRED from all main tables 2026-08-05 by user decision. Data intentionally kept; restoring it is a tier change, not a re-measurement.",
+        "label was 'Ours (pignet_fixed_best)'; renamed 2026-08-21 to say which physics loss the arm carries rather than which checkpoint it came from."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "retired",
+          "section": "physics_ablation",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept"
+        },
+        "pose": {
+          "status": "retired",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept",
+          "tables": []
+        },
+        "nci": {
+          "status": "retired",
+          "atom_level": "ok",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept",
+          "ifp_order": 2,
+          "tables": [
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "not_measured"
+        },
+        "quality": {
+          "status": "retired",
+          "posebusters": "ok",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept",
+          "tables": [
+            "posebusters"
+          ],
+          "tables_note": "STALE BY DECISION: status is `retired` (2026-08-05) yet this row is still rendered in pose_quality_summary_posebusters.csv. D8 deferred the cleanup; dropping \"posebusters\" from `tables` removes the row."
+        }
+      }
+    },
+    {
+      "id": "pgdiff_fixed",
+      "label": "Ours (PGDiff+Guide)",
+      "tier": "ablation",
+      "order": 103,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "pgdiff_fixed_best_vina_docked",
+        "eval_out": "pgdiff_fixed",
+        "plip_tag": "pgdiff_fixed",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/pgdiff_fixed_best_gen/pgdiff_fixed_best_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "RETIRED from all main tables 2026-08-05 with pignet_fixed.",
+        "eval_plip/pgdiff_fixed has NO entry in build_interaction_tables.DOCKED_SOURCE, which is why it was reaching that table on the unfiltered population until 2026-08-21.",
+        "label was 'Ours (pgdiff_fixed_best)'; renamed 2026-08-21 to say which physics loss the arm carries rather than which checkpoint it came from."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "retired",
+          "section": "physics_ablation",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept"
+        },
+        "pose": {
+          "status": "retired",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept",
+          "tables": []
+        },
+        "nci": {
+          "status": "retired",
+          "atom_level": "not_measured",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept",
+          "tables": []
+        },
+        "delta": {
+          "status": "not_measured"
+        },
+        "quality": {
+          "status": "retired",
+          "posebusters": "ok",
+          "reason": "retired from reporting 2026-08-05 (user decision); data intentionally kept",
+          "tables": [
+            "posebusters"
+          ],
+          "tables_note": "STALE BY DECISION: status is `retired` (2026-08-05) yet this row is still rendered in pose_quality_summary_posebusters.csv. D8 deferred the cleanup; dropping \"posebusters\" from `tables` removes the row."
+        }
+      }
+    },
+    {
+      "id": "typeonly",
+      "label": "Ours (Vina+Type)",
+      "tier": "ablation",
+      "order": 110,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "vina_fixed_best_typeonly_vina_docked",
+        "eval_out": null,
+        "plip_tag": "vina_fixed_best_typeonly",
+        "plip_atom_tag": "vina_fixed_best_typeonly",
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/typeonly/vina_fixed_best_typeonly/vina_fixed_best_typeonly_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "families": {
+        "sbdd": {
+          "status": "ok",
+          "section": "guidance_ablation"
+        },
+        "pose": {
+          "status": "not_measured"
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "ifp_order": 9,
+          "tables": [
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "not_measured"
+        },
+        "quality": {
+          "status": "not_measured"
+        }
+      },
+      "notes": [
+        "label was 'Ours [TYPE only]'. Renamed 2026-08-21 to a factorial scheme naming what each arm actually contains (Vina physics loss x kgdiff guidance components), replacing checkpoint-derived names like vina_fixed_best / novdw that only meant something to whoever trained them."
+      ]
+    },
+    {
+      "id": "posonly",
+      "label": "Ours (Vina+Pos)",
+      "tier": "ablation",
+      "order": 111,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "vina_fixed_best_posonly_vina_docked",
+        "eval_out": null,
+        "plip_tag": "vina_fixed_best_posonly",
+        "plip_atom_tag": "vina_fixed_best_posonly",
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/posonly/vina_fixed_best_posonly/vina_fixed_best_posonly_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "families": {
+        "sbdd": {
+          "status": "ok",
+          "section": "guidance_ablation"
+        },
+        "pose": {
+          "status": "not_measured"
+        },
+        "nci": {
+          "status": "ok",
+          "atom_level": "ok",
+          "ifp_order": 10,
+          "tables": [
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "not_measured"
+        },
+        "quality": {
+          "status": "not_measured"
+        }
+      },
+      "notes": [
+        "label was 'Ours [POS only]'. Renamed 2026-08-21 to a factorial scheme naming what each arm actually contains (Vina physics loss x kgdiff guidance components), replacing checkpoint-derived names like vina_fixed_best / novdw that only meant something to whoever trained them."
+      ]
+    },
+    {
+      "id": "vina_fixed_dock",
+      "label": "vina_fixed_best_dock",
+      "tier": "quarantine",
+      "order": 900,
+      "group": "pose_profile",
+      "ids": {
+        "pt_stem": null,
+        "eval_out": "vina_fixed_dock",
+        "plip_tag": "vina_fixed_best_dock",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {},
+      "docked_policy": "none",
+      "notes": [
+        "NOT a model: the RE-DOCKED pose of ours_vina, profiled by plip_pose.py. A redocked pose exists only for a molecule that docked, verified key-for-key against eval_out/vina_fixed/docked_names.txt (n=8340). Appears only in the appendix IFP table."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_applicable"
+        },
+        "pose": {
+          "status": "not_applicable"
+        },
+        "nci": {
+          "status": "ok",
+          "section": "pose_profile",
+          "ifp_order": 17,
+          "tables": [
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "not_applicable"
+        },
+        "quality": {
+          "status": "not_applicable"
+        }
+      }
+    },
+    {
+      "id": "vina_fixed_minimize",
+      "label": "vina_fixed_best_minimize",
+      "tier": "quarantine",
+      "order": 901,
+      "group": "pose_profile",
+      "ids": {
+        "pt_stem": null,
+        "eval_out": null,
+        "plip_tag": "vina_fixed_best_minimize",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {},
+      "docked_policy": "none",
+      "notes": [
+        "NOT a model: the MINIMIZED pose of ours_vina. Same provenance as vina_fixed_dock."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_applicable"
+        },
+        "pose": {
+          "status": "not_applicable"
+        },
+        "nci": {
+          "status": "ok",
+          "section": "pose_profile",
+          "ifp_order": 18,
+          "tables": [
+            "ifp"
+          ]
+        },
+        "delta": {
+          "status": "not_applicable"
+        },
+        "quality": {
+          "status": "not_applicable"
+        }
+      }
+    },
+    {
+      "id": "pidiff_broken",
+      "label": "PIDiff (BROKEN renumbering)",
+      "tier": "quarantine",
+      "order": 902,
+      "group": "broken",
+      "ids": {
+        "pt_stem": null,
+        "eval_out": "pidiff.BROKEN_renumbered_20260721",
+        "plip_tag": null,
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {},
+      "docked_policy": "none",
+      "notes": [
+        "Superseded export in which 77 of 99 pockets were paired with the WRONG receptor (flat .pt renumbered by order of appearance). Kept as evidence. Must never be auto-discovered into a table."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "quarantine"
+        },
+        "pose": {
+          "status": "quarantine"
+        },
+        "nci": {
+          "status": "quarantine"
+        },
+        "delta": {
+          "status": "quarantine"
+        },
+        "quality": {
+          "status": "quarantine"
+        }
+      }
+    },
+    {
+      "id": "abl_vdw_on",
+      "label": "Ours (vdW+Guide)",
+      "tier": "ablation",
+      "order": 120,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_vdw_on_vina_docked",
+        "eval_out": "abl_vdw_on",
+        "plip_tag": "abl_vdw_on",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_vdw_on/abl_vdw_on_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to vdW, guidance ON. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_none_off",
+      "label": "Ours (No physics, no guide)",
+      "tier": "ablation",
+      "order": 101,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_none_off_vina_docked",
+        "eval_out": "abl_none_off",
+        "plip_tag": "abl_none_off",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_none_off/abl_none_off_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "The 0-term / guidance-OFF corner of the physics-term lattice: no Vina energy loss and no guidance. Generated 2026-09-15 from novdw's own checkpoint (iteration 342000) resampled with guide_mode=no_guide, the same construction arm7 OFF uses; provenance in results/diagnostics/abl_none_off/RUN_RECORD.md.",
+        "Closes the lattice that used to have no no-energy/guidance-OFF endpoint. Its sample budget is 24 mol x 100 pockets like the other lattice arms, NOT the larger benchmark run that ours_vina (arm7 ON) uses."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci_v2/posecheck_ablation_all.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_vdw_off",
+      "label": "Ours (vdW Only)",
+      "tier": "ablation",
+      "order": 121,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_vdw_off_vina_docked",
+        "eval_out": "abl_vdw_off",
+        "plip_tag": "abl_vdw_off",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_vdw_off/abl_vdw_off_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to vdW, guidance OFF. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_hbond_on",
+      "label": "Ours (HB+Guide)",
+      "tier": "ablation",
+      "order": 122,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_hbond_on_vina_docked",
+        "eval_out": "abl_hbond_on",
+        "plip_tag": "abl_hbond_on",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_hbond_on/abl_hbond_on_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to HB, guidance ON. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_hbond_off",
+      "label": "Ours (HB Only)",
+      "tier": "ablation",
+      "order": 123,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_hbond_off_vina_docked",
+        "eval_out": "abl_hbond_off",
+        "plip_tag": "abl_hbond_off",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_hbond_off/abl_hbond_off_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to HB, guidance OFF. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_hydro_on",
+      "label": "Ours (Phob+Guide)",
+      "tier": "ablation",
+      "order": 124,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_hydro_on_vina_docked",
+        "eval_out": "abl_hydro_on",
+        "plip_tag": "abl_hydro_on",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_hydro_on/abl_hydro_on_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to Phob, guidance ON. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_hydro_off",
+      "label": "Ours (Phob Only)",
+      "tier": "ablation",
+      "order": 125,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_hydro_off_vina_docked",
+        "eval_out": "abl_hydro_off",
+        "plip_tag": "abl_hydro_off",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_hydro_off/abl_hydro_off_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to Phob, guidance OFF. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_vdw_hbond_on",
+      "label": "Ours (vdW+HB+Guide)",
+      "tier": "ablation",
+      "order": 126,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_vdw_hbond_on_vina_docked",
+        "eval_out": "abl_vdw_hbond_on",
+        "plip_tag": "abl_vdw_hbond_on",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_vdw_hbond_on/abl_vdw_hbond_on_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to vdW+HB, guidance ON. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_vdw_hbond_off",
+      "label": "Ours (vdW+HB Only)",
+      "tier": "ablation",
+      "order": 127,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_vdw_hbond_off_vina_docked",
+        "eval_out": "abl_vdw_hbond_off",
+        "plip_tag": "abl_vdw_hbond_off",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_vdw_hbond_off/abl_vdw_hbond_off_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to vdW+HB, guidance OFF. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_vdw_hydro_on",
+      "label": "Ours (vdW+Phob+Guide)",
+      "tier": "ablation",
+      "order": 128,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_vdw_hydro_on_vina_docked",
+        "eval_out": "abl_vdw_hydro_on",
+        "plip_tag": "abl_vdw_hydro_on",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_vdw_hydro_on/abl_vdw_hydro_on_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to vdW+Phob, guidance ON. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_vdw_hydro_off",
+      "label": "Ours (vdW+Phob Only)",
+      "tier": "ablation",
+      "order": 129,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_vdw_hydro_off_vina_docked",
+        "eval_out": "abl_vdw_hydro_off",
+        "plip_tag": "abl_vdw_hydro_off",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_vdw_hydro_off/abl_vdw_hydro_off_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to vdW+Phob, guidance OFF. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_hbond_hydro_on",
+      "label": "Ours (HB+Phob+Guide)",
+      "tier": "ablation",
+      "order": 130,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_hbond_hydro_on_vina_docked",
+        "eval_out": "abl_hbond_hydro_on",
+        "plip_tag": "abl_hbond_hydro_on",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_hbond_hydro_on/abl_hbond_hydro_on_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to HB+Phob, guidance ON. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    },
+    {
+      "id": "abl_hbond_hydro_off",
+      "label": "Ours (HB+Phob Only)",
+      "tier": "ablation",
+      "order": 131,
+      "group": "ablation",
+      "ids": {
+        "pt_stem": "abl_hbond_hydro_off_vina_docked",
+        "eval_out": "abl_hbond_hydro_off",
+        "plip_tag": "abl_hbond_hydro_off",
+        "plip_atom_tag": null,
+        "delta_tag": null
+      },
+      "sources": {
+        "default": "results/abl_hbond_hydro_off/abl_hbond_hydro_off_vina_docked.pt"
+      },
+      "layout": "grouped",
+      "docked_policy": "vina_dock",
+      "notes": [
+        "Physics-term lattice arm: Vina loss restricted to HB+Phob, guidance OFF. The full 3-term arm is ours_vina (Vina+Guide / Vina Only); the 0-term arm is novdw (Guide Only)."
+      ],
+      "families": {
+        "sbdd": {
+          "status": "not_measured",
+          "reason": "lattice arms are not in the SBDD baseline table"
+        },
+        "pose": {
+          "status": "not_measured",
+          "reason": "no smina/gnina/vina_meeko arms"
+        },
+        "nci": {
+          "status": "ok",
+          "tables": [
+            "nci_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/nci_summary_abl.txt, not in the F3 baseline table -- the lattice has no external counterpart"
+        },
+        "delta": {
+          "status": "not_measured",
+          "reason": "not in results/offtarget/"
+        },
+        "quality": {
+          "status": "ok",
+          "tables": [
+            "posecheck_abl"
+          ],
+          "note": "rendered in results/diagnostics/ablation_nci/posecheck_ablation_{ON,OFF}.csv"
+        }
+      }
+    }
+  ],
+  "_legacy_comments": {
+    "_note": "Verbatim _comment blocks of the two legacy registries, kept so the shims in scripts/model_registry.py can reproduce those files exactly. Phase A only.",
+    "pose": [
+      "Model roster for the pose-fidelity experiment (analysis/EXPERIMENT_pose_fidelity.md).",
+      "'dir' holds sdf/ + manifest.csv and receives smina/, gnina/, smina_vinardo/, vina_meeko/,",
+      "posebusters/, posecheck/. 'pt' is the source sampling .pt, needed only to re-run",
+      "eval_aggregate_all.py -- RMSD and strain are computed from the SDFs alone.",
+      "n_mols/n_pockets are the VERIFIED molecule counts in dir/sdf/*.sdf; build_worklist.py",
+      "asserts against them so a truncated export can never pass as complete.",
+      "'group' drives the mixed-effects model contrast: baseline = external models with no physics",
+      "loss (targetdiff is the reference level, see Phase 5).",
+      "RETIRED 2026-08-05 (user decision): pgdiff_fixed and pignet_fixed were removed from this roster and from build_comparison_tables.py, so they no longer appear in master.csv, rmsd_summary.txt, redock_comparison.txt, tables.md or comparison_tables.txt. Their eval_out/ docking outputs and source .pt files are intentionally KEPT -- only the reporting was removed, so restoring the two entries brings them back without re-docking."
+    ],
+    "delta": [
+      "Model roster for the Delta Score / selectivity experiment (analysis/METHODS_delta_score.md).",
+      "Each row is docked into ONE randomly assigned off-target pocket; Delta = on - off.",
+      "",
+      "'pt' is the source of BOTH the RDKit molecules and the reused on-target Vina numbers,",
+      "except for vina_fixed_noguide, whose consolidated .pt dropped the 'mol' objects -- its",
+      "molecules come from 'mol_pt' and are joined to the vina records by 'join': see below.",
+      "",
+      "'layout':  grouped = list[100] of list[dict], index == pocket",
+      "           flat    = {'all_results': list[dict]}, aligned by full ligand_filename",
+      "           single  = list[100] of a single dict (the crystal reference set)",
+      "",
+      "'join': 'docked_order' means mol_pt[i][j] corresponds to the j-th entry of pt[i] that",
+      "has a Vina dock score. Verified 2026-08-03: per-pocket counts match for all 100 pockets,",
+      "and stored chem_results QED/SA equal the values recomputed from mol_pt mols (24/24 sampled).",
+      "dock_offtarget.py re-asserts the count identity at load time.",
+      "",
+      "n_mols / n_pockets are the VERIFIED docking-successful counts measured 2026-08-03;",
+      "the loader asserts against them so a silently changed .pt can never pass as the same data.",
+      "",
+      "EXCLUDED on purpose: DrugGPS / ResGen / DiffSBDD have no pocket-dir prefix in",
+      "ligand_filename (n_pockets = 0), so no off-target can be assigned. PIDiff has only",
+      "8.5 molecules per pocket. liGAN / CVAE / IPDiff / MolCraft / DeepICL / Ours(pignet)",
+      "duplicate the story already told by the kgdiff and AliDiff rows."
+    ]
+  }
+}
