@@ -14,8 +14,8 @@ venv/
 
 # Run artifacts. Training and sampling write here; none of it is source.
 logs/
+logs_slurm/
 logs_diffusion/
-slurm_logs/
 checkpoints/
 *.lmdb
 *.lmdb-lock
