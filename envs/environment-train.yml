@@ -1,0 +1,70 @@
+# Training, sampling, aggregation, and PLIP profiling.
+#
+# Versions confirmed by importing each module in the environment that produced the published
+# numbers, not by reading conda metadata (which carries stale duplicate entries here).
+#
+#   conda env create -f envs/environment-train.yml
+#   conda activate ged-train
+#   pip install -e .
+#
+# The torch / PyG / torch-scatter line is matched to CUDA 11.3. Substituting a different
+# CUDA build means substituting all four together. The model runs on GPUs newer than cu113
+# nominally targets, because cubins are forward compatible within a compute-capability major.
+
+name: ged-train
+
+channels:
+  - pytorch
+  - pyg
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.9.23
+
+  # --- deep learning stack, pinned as a unit against cu113 ---------------------
+  - pytorch=1.11.0
+  - cudatoolkit=11.3
+  - pyg=2.0.4
+  - pytorch-scatter=2.0.9
+  - pytorch-sparse=0.6.13
+  - pytorch-cluster=1.6.0
+
+  # --- chemistry --------------------------------------------------------------
+  # openbabel is PLIP's protonation backend. The conda package is 3.1.1; the Python
+  # module reports 3.1.0. Same install.
+  - openbabel=3.1.1
+
+  # --- scientific stack -------------------------------------------------------
+  # numpy < 1.24 is load-bearing, not conservatism: gated_energy_diffusion/utils/data.py
+  # uses np.long and np.bool, both removed in 1.24. A newer numpy breaks LMDB rebuilds.
+  - numpy=1.23.1
+  - pandas=2.1.4
+  - scipy=1.7.3
+  - scikit-learn
+  - matplotlib
+  - seaborn
+
+  # --- io / config ------------------------------------------------------------
+  - pyyaml
+  - lmdb
+  - tqdm
+  - biopython
+
+  - pip
+  - pip:
+      # rdkit 2024.03.6 is the version every PLIP-side number was measured with. It must
+      # not be confused with the 2026.03.x RDKits in the PoseCheck and PoseBusters
+      # environments; see envs/README.md.
+      - rdkit==2024.3.6
+      - easydict==1.13
+      - tensorboard==2.9.0
+      - protobuf<=3.20.3
+      # PLIP 3.0.0 lives here and nowhere else. Version-stable across releases, which is
+      # why the cross-paper interaction comparison uses the PLIP arm rather than ProLIF.
+      - plip==3.0.0
+      # AutoDock Vina Python API, for generated-pose scoring and redocking.
+      - vina==1.2.2
+      # MUST NOT be upgraded. The docking path depends on this pin. The RMSD round-trip
+      # work needs meeko 0.6.1 and therefore lives in envs/environment-vina.yml instead.
+      - meeko==0.1.dev3

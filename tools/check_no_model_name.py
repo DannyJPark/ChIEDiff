@@ -31,6 +31,9 @@ ALLOWED = {
     "README.md",
     "NOTICE.md",
     "CITATION.cff",
+    # The project URL is the repository URL, which necessarily carries the repository
+    # name. Renaming the model means renaming the repository, and this line follows.
+    "pyproject.toml",
     # The LaTeX macro definitions the table harness expands.
     "tables/tables_main.tex",
     "tables/tables_supplementary.tex",

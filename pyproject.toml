@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gated-energy-diffusion"
+version = "1.0.0"
+description = "Chemistry-gated interaction-energy diffusion for structure-based 3D molecular generation"
+readme = "README.md"
+requires-python = ">=3.9,<3.10"
+license = { file = "LICENSE" }
+keywords = [
+    "structure-based drug design",
+    "3D molecular generation",
+    "diffusion models",
+    "protein-ligand interactions",
+    "physics-informed learning",
+]
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# torch, torch-geometric and torch-scatter are deliberately NOT listed. They need a wheel
+# matched to the local CUDA build (torch 1.11.0 + cu113 here) and pip cannot pick that
+# correctly from an index alone. Install the environment from envs/environment-train.yml
+# first, then `pip install -e .` into it.
+dependencies = [
+    "numpy>=1.23,<1.24",   # load-bearing: utils/data.py uses np.long and np.bool,
+                           # both removed in numpy 1.24
+    "pandas==2.1.4",
+    "scipy>=1.7.3,<2.0.0",
+    "pyyaml",
+    "easydict",
+    "lmdb",
+    "tqdm",
+    "biopython",
+    "scikit-learn",
+    "matplotlib",
+    "seaborn",
+    "tensorboard==2.9.0",
+    "protobuf<=3.20.3",
+]
+
+[project.optional-dependencies]
+# Optional experiment tracking; the trainer runs without it.
+wandb = ["wandb"]
+
+[[project.authors]]
+name = "Hyoungjoon Park"
+
+[[project.authors]]
+name = "Sanghyun Park"
+email = "sanghyun@yonsei.ac.kr"
+
+[project.urls]
+Homepage = "https://github.com/<user>/ChIEDiff"
+
+[tool.setuptools.packages.find]
+include = ["gated_energy_diffusion*"]
+
+[tool.setuptools.package-data]
+"gated_energy_diffusion.utils.evaluation" = ["*.pkl.gz"]
+
+# No console_scripts. bin/train.py and bin/sample.py are run directly
+# (`python bin/train.py --config configs/train.yml`), which is what the launchers in
+# slurm/ do and what every log in the reproduction record shows. Wrapping them in
+# entry points would add a package layer that buys nothing.

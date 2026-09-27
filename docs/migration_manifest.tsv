@@ -1,0 +1,28 @@
+source_path	target_path	action	reason	source_sha256
+configs/models.json	configs/models.json	copy	benchmark registry; the 9-id paper roster	300c1c6328397815d58e7d80e0e892d8508a1211234f909530838f1026f540db
+data/crossdocked_pocket10_pose_split.pt	data/crossdocked_pocket10_pose_split.pt	copy	the train/test split itself (CC0)	fc2e32512985e1f01f70b95ca58c0f5abf1ab0a6a7985cabcfedd969ac730bc4
+datasets/__init__.py	gated_energy_diffusion/datasets/__init__.py	copy	get_dataset; pdbbind/multipro branches pruned in 2.6	f57fadf55cc23879c27b56b2da03b25b6e0e97bc50492a6594dbf8e80f04e280
+datasets/pl_data.py	gated_energy_diffusion/datasets/pl_data.py	copy	ProteinLigandData + FOLLOW_BATCH	21acbaa57de69b07c6c82c0f2914382ce634c21d164282a026cee0a18372edab
+datasets/pl_pair_dataset.py	gated_energy_diffusion/datasets/pl_pair_dataset.py	copy	CrossDocked LMDB dataset; two unused classes pruned in 2.6	8914dd194c6cc160cd4083d33b2ceeebb2e3d0e12c1fbf54ad8eb8be59e3cf41
+models/common.py	gated_energy_diffusion/models/common.py	copy	shared layers used by the denoiser (TargetDiff, MIT)	e8fd433182c26f5637001ee8ae5e8e8d5914ad507a70f23bda75d0d9a95859c7
+models/uni_transformer.py	gated_energy_diffusion/models/uni_transformer.py	copy	SE(3)-equivariant denoiser (TargetDiff, MIT)	fdd97025ed9f3e72d6c226c6321ae3d8bb71c30d5b89f40ee2b4845818763e12
+utils/__init__.py	gated_energy_diffusion/utils/__init__.py	copy	package marker (empty)	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+utils/data.py	gated_energy_diffusion/utils/data.py	copy	PDBProtein, parse_sdf_file; np.long/np.bool need numpy<1.24	11d5a794e49dc925bd4d37dff11d5dac40b490764f65e10e930fa918b6b99c60
+utils/evaluation/__init__.py	gated_energy_diffusion/utils/evaluation/__init__.py	copy	reachable from the production path	e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+utils/evaluation/analyze.py	gated_energy_diffusion/utils/evaluation/analyze.py	copy	reachable from the production path	74aedf9b06830d9b8c396ee9d7d9eac8db81e038cae5c1ec4766ffe230735e4d
+utils/evaluation/atom_num.py	gated_energy_diffusion/utils/evaluation/atom_num.py	copy	pocket-size atom-count prior used by the sampler	59835c348d3d06ae0678b366be1824641eac0d5600b763ed13bc846b49bb92bc
+utils/evaluation/atom_num_config.py	gated_energy_diffusion/utils/evaluation/atom_num_config.py	copy	reachable from the production path	2e72643b77beaffc368388300b99fe2c2aa3bff9c8bea9eb2189844dafbc4fa7
+utils/evaluation/eval_atom_type.py	gated_energy_diffusion/utils/evaluation/eval_atom_type.py	copy	atom-type JSD table	07c73aec547a5163b09e8f6b587313d4ac03b5561c4fdc382c6a181aa5221a88
+utils/evaluation/eval_bond_length.py	gated_energy_diffusion/utils/evaluation/eval_bond_length.py	copy	bond-length JSD table	8801b0cfb7992234ab4c562245bfbba8256a5a23268efe0a20fff3e765b99df5
+utils/evaluation/eval_bond_length_config.py	gated_energy_diffusion/utils/evaluation/eval_bond_length_config.py	copy	reachable from the production path	bc9c5de52bcdd34ecca7021b3ec564457a8d587b5dbb6f897a5a1e7d1cb1bf80
+utils/evaluation/fpscores.pkl.gz	gated_energy_diffusion/utils/evaluation/fpscores.pkl.gz	copy	reachable from the production path	10dcef9340c873e7b987924461b0af5365eb8dd96be607203debe8ddf80c1e73
+utils/evaluation/sascorer.py	gated_energy_diffusion/utils/evaluation/sascorer.py	copy	synthetic accessibility, feeds the property table	c7f1130583c48fe99e26610f792d1140a07d8732f63fc3397f3b4207182fcb1e
+utils/evaluation/scoring_func.py	gated_energy_diffusion/utils/evaluation/scoring_func.py	copy	QED/SA/logP, feeds the property table	245c97f50c0a2b65df6c11e865ea2735c353179ed87dc2c70d45ee742a7a3b92
+utils/misc.py	gated_energy_diffusion/utils/misc.py	copy	load_config, get_logger, seed_all	90302f0a71b5e4883502e1a0cb5f94c182eb8ed27c465bb2900969a6c61d689a
+utils/path_fix.py	gated_energy_diffusion/utils/path_fix.py	copy	checkpoint data-path repair, needed for --resume/--ckpt	ae40e18b9988ad267c68b4a8f0d83ea6f7e1a627928d6307fa37b4d3c5618489
+utils/reconstruct.py	gated_energy_diffusion/utils/reconstruct.py	copy	GPL-2.0 (liGAN); required for SDF export and all tables	d49815805841f73fa2f01dd91138db35926068493226347184f514815db4bc26
+utils/train.py	gated_energy_diffusion/utils/train.py	copy	inf_iterator, get_optimizer, get_scheduler	e1339eb75c9d55c42def7725f837c59fcadd2e9fb7b46accf59963eee01948bb
+utils/transforms.py	gated_energy_diffusion/utils/transforms.py	copy	featurisers incl. FeaturizeVinaAtomTypes (the XS gates)	9a1996b8095fc5d43bc9ac53667dccd0b1b953c5d333cc443f0b8c42ee2f97e4
+utils/vina_rules.py	gated_energy_diffusion/utils/vina_rules.py	copy	VINA_WEIGHT + 5 radial terms; rest pruned in 2.4	3899e1b5e4e62148acd774ad2a389f3de6bba662682432bca2fbfd31f8a05273
+utils/vina_types.py	gated_energy_diffusion/utils/vina_types.py	copy	Vina xs radii and hydrophobic/donor/acceptor flags	e2c71a96cdbc6eb24f7c458ae71ae64416ed63697f4f9448c2618cc363b2558c
+utils/warmup.py	gated_energy_diffusion/utils/warmup.py	copy	GradualWarmupScheduler, referenced by get_scheduler	5cbca33dc065c87c5217dc029b9cc6d892891e7c7788ff08944e1c76d85e22aa

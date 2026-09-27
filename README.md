@@ -185,6 +185,7 @@ The model name appears in exactly these places:
 | `gated_energy_diffusion/__init__.py` | `MODEL_NAME` |
 | `README.md` | title and the Project name field |
 | `NOTICE.md`, `CITATION.cff` | title |
+| `pyproject.toml` | the `Homepage` URL (it carries the repository name) |
 | `tables/tables_main.tex`, `tables/tables_supplementary.tex` | `\newcommand{\method}` |
 
 Outside the repository: the GitHub repository name and the Zenodo record title. Nothing

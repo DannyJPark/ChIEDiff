@@ -1,0 +1,34 @@
+# Figure assembly.
+#
+# This environment exists because it was previously undeclared: the figure-assembly step ran
+# under a base conda interpreter and imports PyMuPDF (`fitz`), which appeared in no
+# requirements file. A reproducer following the old instructions would hit an ImportError
+# with nothing to explain it.
+#
+# PyMuPDF is used by figure_build/consistency_combined/combine.py, which composes the main
+# redocking-consistency figure by placing two separately generated vector panels
+# (`show_pdf_page`) rather than re-plotting them together. That keeps each panel's own
+# typography intact at the 372 pt journal text width.
+#
+# Two figures need PyMOL in addition and are not covered here: the problem-definition figure
+# and the case-study figure. PyMOL is an optional Tier-3 requirement; their generators ship
+# but regenerating them needs PyMOL plus the archived poses. PyMOL's ray tracer is CPU-only
+# and its thread count is PyMOL's own max_threads setting, not OMP_NUM_THREADS -- leaving it
+# at the default makes a batch job no faster than a 2-core shell.
+
+name: ged-figures
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - matplotlib
+  - seaborn
+  - pip
+  - pip:
+      # The dependency that was missing from every requirements file.
+      - pymupdf
