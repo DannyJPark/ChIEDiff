@@ -7,15 +7,17 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help tables tables-dry remeasure measure verify check check-release clean
+.PHONY: help tables tables-dry remeasure measure sample verify check check-release clean
 
 help:  ## show this list
 	@grep -hE '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
 	@echo
 	@echo "  Tier 1  make tables      reproduce every table from the shipped CSVs (~1 min, CPU)"
-	@echo "  Tier 2  make measure && make remeasure   re-measure from archived samples (days)"
-	@echo "  Tier 3  sbatch -p <part> -q <qos> slurm/train.sbatch   retrain (~1.2M iters)"
+	@echo "  Tier 2  bin/measure.sh then bin/remeasure.sh    re-measure locally (hours-days)"
+	@echo "  Tier 3  python bin/train.py --config configs/train.yml --tag myrun   (days, 1 GPU)"
+	@echo
+	@echo "  No cluster needed. slurm/ holds optional launchers; see docs/reproduce.md."
 
 tables:  ## shipped CSVs -> all 22 generated tables
 	bash bin/make_tables.sh
