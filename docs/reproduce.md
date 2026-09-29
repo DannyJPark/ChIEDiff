@@ -56,7 +56,7 @@ scoring) and **GNINA 1.1**. Vina and PoseBusters come in through pip in the envi
 ### 2.2 The archive
 
 ```bash
-python3 tools/download_archive.py --doi <the data DOI in README section 2>
+python3 tools/download_archive.py --doi 10.5281/zenodo.23029439
 ```
 
 Lands in `archive/`: the trained weights, the generated molecules, our measurement outputs, and
