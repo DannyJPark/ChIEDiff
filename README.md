@@ -38,22 +38,31 @@ dual-head guidance, and the one-off diagnostic experiments are deliberately **no
 
 Three tiers, with their honest costs.
 
+No cluster required. Everything runs on one workstation with one GPU; Slurm is an option,
+not a prerequisite.
+
 ```bash
-# Tier 1 — reproduce every number in the manuscript.  ~1 min, CPU, no downloads.
+# Tier 1 — reproduce every number in the manuscript.  ~1 min, CPU, no downloads, no conda.
 make tables
 
-# Tier 2 — re-measure from the archived samples.  Days of cluster time, 4 environments.
+# Tier 2 — re-measure from the archived molecules.  Hours to days, four conda environments.
 python3 tools/download_archive.py --doi <data DOI>
-make measure      # submits docking / PLIP / PoseCheck / PoseBusters arrays
-make remeasure    # aggregates raw measurements back into the 19 source CSVs
+bash bin/measure.sh --samples archive/samples --tag mymodel --pockets 0-4
+bash bin/remeasure.sh
 
-# Tier 3 — retrain from scratch.  ~1.2M iterations.
-sbatch -p <partition> -q <qos> slurm/train.sbatch
+# Tier 3 — train, or sample from the released weights.  Days on one GPU.
+python bin/train.py --config configs/train.yml --tag myrun
+bash bin/sample_local.sh --ckpt archive/<weights file> --pockets 0-4
 ```
 
-Tier 1 is the one a reviewer runs. It reads the aggregate CSVs committed under `results/`
-(~39 MB) and regenerates all 22 generated tables, verifying every printed cell against its
-source CSV on the way.
+Tier 1 is the one a reviewer runs, and it is sufficient to check the paper: it reads the
+aggregate CSVs committed under `results/` (~40 MB), regenerates all 22 generated tables, and
+verifies all 1767 printed cells against their source CSVs. It needs only the Python standard
+library and a TeX installation.
+
+Tiers 2 and 3 default to **five pockets**, not 100. The full benchmark is nine models × 100
+pockets × ~100 molecules across four instruments, which is weeks on one machine; five pockets
+confirms the pipeline runs. `docs/reproduce.md` has the detail, including a symptom table.
 
 ## 4. Repository layout
 
@@ -153,8 +162,11 @@ harness targets are swapped for the manuscript files, which is a one-line change
 ## 8. Training
 
 ```bash
-sbatch -p <partition> -q <qos> slurm/train.sbatch    # CONFIG=configs/train.yml
+python bin/train.py --config configs/train.yml --tag myrun          # local GPU
+sbatch -p <partition> -q <qos> slurm/train.sbatch                   # or on a cluster
 ```
+
+`--resume <run dir>` picks up where a stopped run left off, so this survives interruption.
 
 The interaction-energy weight ramps as `ω_m = 0.05 · min(m / 200000, 1)` over optimizer
 iterations. That ramp lives in the training loop, not in the model. The energy is evaluated
@@ -168,8 +180,11 @@ fallback existed in development and changes per-atom gradient directions for 41%
 ## 9. Sampling
 
 ```bash
-sbatch -p <partition> -q <qos> slurm/sample_array.sbatch
+bash bin/sample_local.sh --ckpt archive/<weights file> --pockets 0-4
+sbatch -p <part> -q <qos> --array=0-99 slurm/sample_array.sbatch    # or on a cluster
 ```
+
+Sequential and resumable locally; about an hour per pocket at 100 molecules on a 24 GB card.
 
 Only `head1_only` guidance is implemented. The two guidance channels are deliberately
 asymmetric: **positions use ∇log Â and atom types use ∇Â**, matching the manuscript's
