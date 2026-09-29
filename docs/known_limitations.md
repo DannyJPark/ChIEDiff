@@ -61,6 +61,33 @@ sensitivity analysis, not a complete failure-log audit.
 
 ## Reproducibility limitations
 
+### The sampler is not reproducible at the level of individual molecules
+
+This is stronger than a missing-provenance problem, and it holds on CPU, at one thread, with
+identical weights, inputs and seeds. Measured directly:
+
+| comparison | affinity position gradient |
+|---|---|
+| the same model instance, called twice | 2.38e-07 |
+| two instances of the same class | 2.38e-07 |
+| the released code against the original | 2.68e-07 |
+
+The forward pass is bit-identical in every case. The position gradient is the second of two
+backward passes over a graph the first call retained, and re-traversing that graph accumulates
+in a different float order each time. Over 1000 stochastic steps with a coordinate guidance
+scale of 25, that difference grows into a different molecule — the original implementation's
+own source comment says exactly this.
+
+Consequence: **running the same code twice produces different molecules.** The archived
+molecule set is the authoritative record of identity; a fresh run reproduces the reported
+statistics, not the molecules. This is a property of the method as published, not of this
+release, and the equivalence tests in `scripts/verify_sampling_equivalence.py` are written
+around it: they compare the release against the reference's own run-to-run spread rather than
+demanding an identity the reference cannot deliver.
+
+The atom-count distribution *is* exactly reproducible, because it is drawn from the
+pocket-size prior before any gradient is taken.
+
 ### The GPU that produced the published samples is unrecorded
 
 No Slurm log survives for the production sampling run, and the sampler logged only its

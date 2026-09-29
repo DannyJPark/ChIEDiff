@@ -38,6 +38,11 @@ from torch_geometric.transforms import Compose
 from torch_scatter import scatter_mean
 from tqdm.auto import tqdm
 
+# Run from a clone without `pip install -e .`: put the repository root on sys.path so
+# `gated_energy_diffusion` resolves. Harmless when the package IS installed.
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
 from gated_energy_diffusion.utils import misc
 from gated_energy_diffusion.utils import transforms as trans
 from gated_energy_diffusion.datasets import get_dataset
