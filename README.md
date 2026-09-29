@@ -27,7 +27,7 @@ dual-head guidance, and the one-off diagnostic experiments are deliberately **no
 | **Project name** | ChIEDiff (provisional; package `gated_energy_diffusion`) |
 | **Project home page** | https://github.com/DannyJPark/ChIEDiff |
 | **Archived version** | [10.5281/zenodo.23000086](https://doi.org/10.5281/zenodo.23000086) — this release, v1.0.0. The version-independent concept DOI, which always resolves to the latest release, is [10.5281/zenodo.23000085](https://doi.org/10.5281/zenodo.23000085) |
-| **Data & weights archive** | DOI 10.5281/zenodo.YYYYYYY — trained weights, generated samples, receptors |
+| **Data & weights archive** | [10.5281/zenodo.23029439](https://doi.org/10.5281/zenodo.23029439) — trained weights, generated molecules, our measurement outputs, and the evaluation receptors (212 MB). Concept DOI [10.5281/zenodo.23029438](https://doi.org/10.5281/zenodo.23029438) |
 | **Operating system(s)** | Linux. Developed and tested on RHEL 9.4 (kernel 5.14.0). POSIX only; not tested on macOS or Windows |
 | **Programming language** | Python 3.9 · Bash · LaTeX |
 | **Other requirements** | PyTorch 1.11.0 + CUDA 11.3, PyTorch Geometric 2.0.4, torch-scatter 2.0.9, RDKit 2024.03.6, NumPy 1.23.1, Open Babel 3.1.1. Evaluation additionally needs AutoDock Vina 1.2.2, SMINA (Vinardo), GNINA 1.1, PLIP 3.0.0, PoseCheck 1.3.1 + ProLIF 2.2.0, PoseBusters 0.6.5 — **five mutually incompatible conda environments**, see [`envs/README.md`](envs/README.md). One NVIDIA GPU for training and sampling. **Regenerating all 22 tables from the shipped CSVs needs only the Python 3.9 standard library and a TeX installation** — no GPU, no downloads |
@@ -46,7 +46,7 @@ not a prerequisite.
 make tables
 
 # Tier 2 — re-measure from the archived molecules.  Hours to days, four conda environments.
-python3 tools/download_archive.py --doi <data DOI>
+python3 tools/download_archive.py --doi 10.5281/zenodo.23029439
 bash bin/measure.sh --samples archive/samples --tag mymodel --pockets 0-4
 bash bin/remeasure.sh
 

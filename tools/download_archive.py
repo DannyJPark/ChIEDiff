@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch the data and weights archive from Zenodo and verify it.
 
-    python3 tools/download_archive.py --doi 10.5281/zenodo.XXXXXXX
+    python3 tools/download_archive.py --doi 10.5281/zenodo.23029439
 
 The DOI is a parameter, not a constant: the archive gets new versions, and hardcoding one
 here would quietly hand a reproducer the wrong version. README section 2 names the current
