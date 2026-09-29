@@ -1,0 +1,149 @@
+job 2348339 on node01 (base_suma_rtx3090)
+GPU 0: NVIDIA GeForce RTX 3090 (UUID: GPU-59f12554-5f1c-4281-81a8-8cb011e34432)
+ref=/home/ktori1361/TheSelective_fix
+ckpt=/home/ktori1361/TheSelective_fix/logs_diffusion/training_vina_singlehead_2026_07_10__19_29_48_vina_fixed/checkpoints/best.pt  sha256=c0c454824585cade
+
+###### Control A: loss and gradient equivalence ######
+==============================================================================
+Control A: loss and gradient equivalence, reference vs pruned
+==============================================================================
+reference repo : /home/ktori1361/TheSelective_fix
+checkpoint     : /home/ktori1361/TheSelective_fix/logs_diffusion/training_vina_singlehead_2026_07_10__19_29_48_vina_fixed/checkpoints/best.pt
+device         : cuda
+gpu            : NVIDIA GeForce RTX 3090
+torch          : 1.11.0
+
+batch: 2 complexes, 62 ligand atoms, 802 pocket atoms
+
+cosine v alpha schedule applied!
+[INFO] Single head mode (Original KGDiff)
+[INFO] Vina scoring vdW mode enabled | VINA_WEIGHT=[-0.0356, -0.00516, 0.84, -0.0351, -0.587] | type_gating=True (surface-distance energy, minimized directly)
+[INFO] Vina term scales: steric=1.0 hydrophobic=1.0 hbond=1.0 -> active terms: steric+hydrophobic+hbond
+cosine v alpha schedule applied!
+[INFO] Gated interaction energy enabled | VINA_WEIGHT=[-0.0356, -0.00516, 0.84, -0.0351, -0.587] | type_gating=True (surface-distance energy, minimized directly)
+[INFO] Interaction term scales: steric=1.0 hydrophobic=1.0 hbond=1.0 -> active terms: steric+hydrophobic+hbond
+state_dict load:
+  reference : 0 missing, 0 unexpected
+  release   : 0 missing, 0 unexpected
+  parameters only in reference: 0
+  parameters only in release  : 0  []
+
+noise floor: the reference model against itself, per timestep
+  ref vs ref     t=   1  max|diff|=8.869e-05  loss=0.02714988403  loss_vdw=-14.99460316
+  ref vs ref     t= 100  max|diff|=1.182e-04  loss=0.02924666554  loss_vdw=-15.00515747
+  ref vs ref     t= 300  max|diff|=2.933e-04  loss=0.03974990919  loss_vdw=-14.96824455
+  ref vs ref     t= 500  max|diff|=3.285e-03  loss=0.2587271631  loss_vdw=-14.65147209
+  ref vs ref     t= 700  max|diff|=7.349e-03  loss=0.9648165703  loss_vdw=-13.94080448
+  ref vs ref     t= 900  max|diff|=3.361e-03  loss=2.56269145  loss_vdw=-11.96312141
+  ref vs ref     t= 999  max|diff|=1.700e-02  loss=2.730123043  loss_vdw=-11.914114
+  nondeterministic reductions; per-timestep floor above
+
+comparing at 7 timesteps (pos_noise_std=0.1):
+  ref vs release t=   1  max|diff|=1.713e-03  loss=0.02715192176  loss_vdw=-14.99459648
+  ref vs release t= 100  max|diff|=2.642e-04  loss=0.02923593298  loss_vdw=-15.00513077
+  ref vs release t= 300  max|diff|=3.093e-04  loss=0.03975620866  loss_vdw=-14.96816254
+  ref vs release t= 500  max|diff|=1.565e-03  loss=0.2587067485  loss_vdw=-14.65313148
+  ref vs release t= 700  max|diff|=8.337e-03  loss=0.9647828341  loss_vdw=-13.94296265
+  ref vs release t= 900  max|diff|=1.867e-02  loss=2.562771797  loss_vdw=-11.96273994
+  ref vs release t= 999  max|diff|=3.698e-03  loss=2.730042696  loss_vdw=-11.91573238
+
+per-timestep ratio of ref-vs-release to the same-model floor
+(informational: this arm does not gate -- see the note in the source):
+  t=   1  19.31x  (floor 8.869e-05)
+  t= 100   2.23x  (floor 1.182e-04)
+  t= 300   1.05x  (floor 2.933e-04)
+  t= 500   0.48x  (floor 3.285e-03)
+  t= 700   1.13x  (floor 7.349e-03)
+  t= 900   5.56x  (floor 3.361e-03)
+  t= 999   0.22x  (floor 1.700e-02)
+  a ratio near 1 means the difference is indistinguishable from the device's
+  own nondeterminism; the CPU arm is what actually gates
+
+  timesteps checked: [1, 100, 300, 500, 700, 900, 999]
+  reference-only parameters: 0 (all dual-head/PIGNet, as expected)
+RESULT: PASS (informational) -- median ratio to the same-model floor 1.13x
+  This arm does not gate. The floor reaches 1.7e-02 at late timesteps, so device
+  nondeterminism dominates anything a code difference would have to exceed, and
+  a threshold here would be arbitrary in both directions. The --device cpu arm
+  decides, and it requires exact equality.
+
+###### Control A (CPU): deterministic arm ######
+==============================================================================
+Control A: loss and gradient equivalence, reference vs pruned
+==============================================================================
+reference repo : /home/ktori1361/TheSelective_fix
+checkpoint     : /home/ktori1361/TheSelective_fix/logs_diffusion/training_vina_singlehead_2026_07_10__19_29_48_vina_fixed/checkpoints/best.pt
+device         : cpu
+torch          : 1.11.0
+
+batch: 2 complexes, 62 ligand atoms, 802 pocket atoms
+
+cosine v alpha schedule applied!
+[INFO] Single head mode (Original KGDiff)
+[INFO] Vina scoring vdW mode enabled | VINA_WEIGHT=[-0.0356, -0.00516, 0.84, -0.0351, -0.587] | type_gating=True (surface-distance energy, minimized directly)
+[INFO] Vina term scales: steric=1.0 hydrophobic=1.0 hbond=1.0 -> active terms: steric+hydrophobic+hbond
+cosine v alpha schedule applied!
+[INFO] Gated interaction energy enabled | VINA_WEIGHT=[-0.0356, -0.00516, 0.84, -0.0351, -0.587] | type_gating=True (surface-distance energy, minimized directly)
+[INFO] Interaction term scales: steric=1.0 hydrophobic=1.0 hbond=1.0 -> active terms: steric+hydrophobic+hbond
+state_dict load:
+  reference : 0 missing, 0 unexpected
+  release   : 0 missing, 0 unexpected
+  parameters only in reference: 0
+  parameters only in release  : 0  []
+
+noise floor: the reference model against itself, per timestep
+  ref vs ref     t=   1  max|diff|=0.000e+00  loss=0.03155137226  loss_vdw=-14.74287605
+  ref vs ref     t= 500  max|diff|=0.000e+00  loss=0.2742068172  loss_vdw=-14.42149925
+  ref vs ref     t= 999  max|diff|=0.000e+00  loss=2.852826118  loss_vdw=-12.03329754
+  deterministic device: floor is exactly 0 at every timestep
+
+comparing at 3 timesteps (pos_noise_std=0.1):
+  ref vs release t=   1  max|diff|=0.000e+00  loss=0.03155137226  loss_vdw=-14.74287605
+  ref vs release t= 500  max|diff|=0.000e+00  loss=0.2742068172  loss_vdw=-14.42149925
+  ref vs release t= 999  max|diff|=0.000e+00  loss=2.852826118  loss_vdw=-12.03329754
+
+device is deterministic; criterion is exact equality
+
+  timesteps checked: [1, 500, 999]
+  reference-only parameters: 0 (all dual-head/PIGNet, as expected)
+RESULT: PASS -- every loss term and gradient bitwise identical
+
+###### Controls C and D: gate assertion, term linearity ######
+cosine v alpha schedule applied!
+[INFO] Gated interaction energy enabled | VINA_WEIGHT=[-0.0356, -0.00516, 0.84, -0.0351, -0.587] | type_gating=True (surface-distance energy, minimized directly)
+[INFO] Interaction term scales: steric=1.0 hydrophobic=1.0 hbond=1.0 -> active terms: steric+hydrophobic+hbond
+==============================================================================
+Control C: the chemistry-gate assertion
+==============================================================================
+  OK: AssertionError raised -- chemistry-gated Vina energy requires per-atom XS flags; add transforms
+
+==============================================================================
+Control D: per-term linearity
+==============================================================================
+  steric      -8.150073051
+  hydrophobic -1.160464406
+  hbond       -4.121535301
+  sum         -13.43207264
+  full        -13.43207264
+  OK: bitwise equal
+
+RESULT: PASS (C, D)
+
+###### Control B: sampling equivalence ######
+==============================================================================
+Control B: sampling distribution, measured against a reference-vs-reference control
+==============================================================================
+OMP_NUM_THREADS=1  seed=42  n=4
+gpu: NVIDIA GeForce RTX 3090
+
+  data_id=0
+    reference vs reference : max|dpos|=7.047e+00  type mismatches=37
+    reference vs release   : max|dpos|=6.867e+00  type mismatches=47
+    atom counts agree exactly: (20, 24, 27, 34)
+    OK  release spread within the reference's own spread
+
+RESULT: PASS -- the release samples like the reference, and the atom-count prior
+  agrees exactly. Molecule identity is not reproducible for either implementation;
+  see this script's docstring.
+
+ALL CONTROLS PASSED
