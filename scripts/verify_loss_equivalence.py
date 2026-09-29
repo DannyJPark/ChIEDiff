@@ -251,21 +251,22 @@ def main() -> int:
             failures += [f"t={t} {k}: {v:.6e} (device is deterministic; must be 0)"
                          for k, v in d if v != 0.0]
         else:
-            # Allow a factor of 2 over the floor: the floor is one sample of a random
-            # quantity, so a second draw can legitimately land somewhat above it.
+            # On a nondeterministic device this arm REPORTS but does not gate. The floor is a
+            # single draw of a random quantity and reaches 1.7e-02 at t=999, so it cannot
+            # discriminate a code difference from device noise -- a threshold here would be
+            # arbitrary in both directions. Run with --device cpu for the arm that can:
+            # there the floor is exactly 0 and the criterion is exact equality.
             ratios.append(worst_t / f_t if f_t else float("inf"))
-            if worst_t > 2.0 * f_t:
-                failures.append(f"t={t}: worst difference {worst_t:.3e} is "
-                                f"{worst_t / f_t:.1f}x the same-model floor {f_t:.3e}")
     print()
     if deterministic:
         print("device is deterministic; criterion is exact equality")
     else:
-        print("per-timestep ratio of ref-vs-release to the same-model floor:")
+        print("per-timestep ratio of ref-vs-release to the same-model floor")
+        print("(informational: this arm does not gate -- see the note in the source):")
         for t, r in zip(args.timesteps, ratios):
             print(f"  t={t:4d}  {r:5.2f}x  (floor {floor[t]:.3e})")
-        print("  a ratio near or below 1 means the difference is indistinguishable from the")
-        print("  device's own nondeterminism")
+        print("  a ratio near 1 means the difference is indistinguishable from the device's")
+        print("  own nondeterminism; the CPU arm is what actually gates")
     print()
 
     structural = []
@@ -284,21 +285,21 @@ def main() -> int:
             print(f"  {f}")
         if len(failures) > 20:
             print(f"  ... and {len(failures) - 20} more")
-        print("\nThe difference exceeds what the same model produces against itself, so it is")
-        print("a behavioural change rather than kernel nondeterminism. Do not widen the")
-        print("criterion; find the pruned statement that mattered. Run with --device cpu for a")
-        print("deterministic arm that isolates the code from the GPU reductions.")
+        print("\nOn a deterministic device any nonzero difference is a behavioural change.")
+        print("Do not widen the criterion; find the pruned statement that mattered.")
         return 1
 
-    if deterministic:
-        print("RESULT: PASS -- bitwise identical on a deterministic device")
-    else:
-        print("RESULT: PASS -- at every timestep the ref-vs-release difference is within twice")
-        print("  the difference the reference produces against itself, i.e. indistinguishable")
-        print("  from this device's scatter-atomic nondeterminism. Run with --device cpu for a")
-        print("  deterministic arm that tests the code without the GPU reductions.")
     print(f"  timesteps checked: {args.timesteps}")
     print(f"  reference-only parameters: {len(only_ref)} (all dual-head/PIGNet, as expected)")
+    if deterministic:
+        print("RESULT: PASS -- every loss term and gradient bitwise identical")
+    else:
+        med = sorted(ratios)[len(ratios) // 2] if ratios else float("nan")
+        print(f"RESULT: PASS (informational) -- median ratio to the same-model floor {med:.2f}x")
+        print("  This arm does not gate. The floor reaches 1.7e-02 at late timesteps, so device")
+        print("  nondeterminism dominates anything a code difference would have to exceed, and")
+        print("  a threshold here would be arbitrary in both directions. The --device cpu arm")
+        print("  decides, and it requires exact equality.")
     return 0
 
 

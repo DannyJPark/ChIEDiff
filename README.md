@@ -112,12 +112,18 @@ property of the shipped weights, not just of the paper.
 same seed yields a **different molecule set**. The archived samples are authoritative for
 molecule identity; a fresh run reproduces the statistics, not the identities.
 
-**6.4 The GPU that produced the published samples is not recorded.** No Slurm log survives
-for that run and the sampler logged only its arguments. The launcher fans out across
-several GPU models, so the published cohort may not be a single-device product. Bitwise
-reproduction of the published molecules is therefore **not** claimed; equivalence testing
-in this repository proves only that the released code matches the original code on the same
-device.
+**6.4 The sampler does not reproduce individual molecules, even on CPU at one thread with
+identical weights, inputs and seeds.** The affinity position gradient is a second backward
+pass over a graph the first retained, and re-traversing it accumulates in a different float
+order each time — about 2.4e-07, which 1000 stochastic steps at a guidance scale of 25 grow
+into a different molecule. Running the same code twice gives different molecules; the
+original implementation's own comment says so. The archived molecule set is authoritative
+for identity, and a fresh run reproduces the reported statistics, not the molecules. The
+atom-count distribution *is* exactly reproducible, being drawn before any gradient.
+
+Separately, the GPU that produced the published samples is not recorded: no Slurm log
+survives and the sampler logged only its arguments. Both launchers here now log
+`nvidia-smi -L`.
 
 **6.5 Cohort chain.** 10,000 attempted → 9,857 exported to SDF → 8,340 docking-successful
 (15.4% fragmented) → 8,338 with complete scoring → 8,069 in the strict pose cohort. Every

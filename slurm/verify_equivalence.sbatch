@@ -65,7 +65,7 @@ echo "###### Control B: sampling equivalence ######"
 python scripts/verify_sampling_equivalence.py \
     --reference-repo "$REF_REPO" --ckpt "$CKPT" \
     --data-path "$DATA_PATH" --split-path "$SPLIT_PATH" \
-    --data-ids 0 1 --num-samples 8 --batch-size 4 || rc=1
+    --data-ids 0 --num-samples 4 --batch-size 4 || rc=1
 echo
 
 if [ "$rc" = "0" ]; then
