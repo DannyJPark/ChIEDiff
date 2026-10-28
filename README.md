@@ -38,7 +38,7 @@ slurm/                    optional batch launchers
 | Data and weights | [10.5281/zenodo.23029439](https://doi.org/10.5281/zenodo.23029439) |
 | Operating systems | Linux. Developed on RHEL 9.4. POSIX only, not tested on macOS or Windows |
 | Programming language | Python 3.9 |
-| Other requirements | PyTorch 1.11.0 with CUDA 11.3, PyTorch Geometric 2.0.4, torch-scatter 2.0.9, RDKit 2024.03.6, NumPy 1.23.1, Open Babel 3.1.1, and one NVIDIA GPU for training and sampling. Evaluation additionally needs AutoDock Vina 1.2.2, Meeko 0.6.1, SMINA, GNINA 1.1, PLIP 3.0.0, PoseCheck 1.3.1 with ProLIF 2.2.0, and PoseBusters 0.6.5, across four more environments |
+| Other requirements | PyTorch 1.11.0 with CUDA 11.3, PyTorch Geometric 2.0.4, torch-scatter 2.0.9, RDKit 2024.03.6, NumPy 1.23.1, Open Babel 3.1.1, and one NVIDIA GPU for training and sampling. Evaluation additionally needs AutoDock Vina 1.2.2, Meeko 0.6.1, SMINA, GNINA 1.1, PLIP 3.0.0, PoseCheck 1.3.1 with ProLIF 2.2.0, and PoseBusters 0.6.5, across three more environments |
 | License | MIT, except `gated_energy_diffusion/utils/reconstruct.py` which is GPL-2.0. See NOTICE.md |
 | Restrictions for non-academic use | none |
 
@@ -50,7 +50,7 @@ conda activate ged-train
 pip install -e .
 ```
 
-The four evaluation environments are separate and must stay that way. PoseBusters and
+The three evaluation environments are separate and must stay that way. PoseBusters and
 PoseCheck pull in two different RDKits, and both contribute numbers to the tables. See
 `envs/README.md`.
 
@@ -72,7 +72,7 @@ python tools/download_archive.py --doi 10.5281/zenodo.23029439
 
 ```bash
 python bin/train.py --config configs/train.yml --tag myrun
-python bin/train.py --config configs/train.yml --tag myrun --resume runs/myrun
+python bin/train.py --config configs/train.yml --tag myrun --resume logs_diffusion/train_myrun
 ```
 
 The released checkpoint is iteration 1,195,000 at batch size 2 with 2 accumulation steps,
@@ -136,8 +136,8 @@ released weights, not only of the paper.
 through `--start_index`, at seed 42. A single 100-molecule run at the same seed gives a
 different molecule set.
 
-**The cohorts are not interchangeable.** 9,999 molecules were generated, 9,857 reconstructed
-and exported to SDF, 8,340 docked successfully, 8,069 are in the strict pose cohort. The
+**The cohorts are not interchangeable.** 9,999 molecules were sampled, 9,857 of them could be
+reconstructed and exported to SDF, 8,340 docked successfully, 8,069 are in the strict pose cohort. The
 attrition is not independent of the model, because fragmented molecules fail docking and the
 models that fragment most lose most. Every table states the cohort it aggregates, and
 `reproduction.ipynb` prints the count next to each number.

@@ -11,7 +11,7 @@ jupyter notebook reproduction.ipynb     # reads this directory; no GPU, no downl
 
 ## Integrity
 
-`MANIFEST.sha256` covers every file here in `sha256sum` format:
+`MANIFEST.sha256` covers the 18 data files here, in `sha256sum` format:
 
 ```bash
 cd results && sha256sum -c MANIFEST.sha256
@@ -32,7 +32,7 @@ cd results && sha256sum -c MANIFEST.sha256
 | `comparison/appendix/posebusters/pose_quality_summary_posebusters.csv` | PoseBusters pass rates and connectivity |
 | `comparison/f2_pose_fidelity/pb_distance/pb_distance_strict.csv` | PoseBusters heavy-atom clash counts |
 | `comparison/f4_delta_score/delta_score_per_mol.csv.gz` | one row per molecule for the specificity analysis, which is re-aggregated with and without clipping |
-| `diagnostics/ablation_nci/nci_summary_abl.txt` | the PLIP ablation arms |
+| `diagnostics/ablation_nci/nci_summary_abl.csv` | the PLIP and ProLIF ablation arms |
 | `diagnostics/ablation_nci_v2/posecheck_ablation_all.csv` | the ProLIF and PoseCheck ablation arms |
 | `diagnostics/type_cf/pocket{0..4}.csv` | the atom-type substitution diagnostic |
 
@@ -50,7 +50,7 @@ cd results && sha256sum -c MANIFEST.sha256
 Each file aggregates one cohort, and the cohorts are not interchangeable:
 
 ```
-10,000 attempted -> 9,857 exported to SDF -> 8,340 docking-successful
+9,999 sampled -> 9,857 reconstructed and exported to SDF -> 8,340 docking-successful
                  -> 8,338 with complete scoring -> 8,069 in the strict pose cohort
 ```
 

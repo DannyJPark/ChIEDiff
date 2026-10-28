@@ -4,7 +4,7 @@
     python3 tools/download_archive.py --doi 10.5281/zenodo.23029439
 
 The DOI is a parameter, not a constant: the archive gets new versions, and hardcoding one
-here would quietly hand a reproducer the wrong version. README section 2 names the current
+here would quietly hand a reproducer the wrong version. README.md names the current
 one. Files land in archive/ (gitignored) and are checked against the archive's own SHA256SUMS,
 which is one of the files in the record.
 
@@ -147,7 +147,7 @@ def main() -> int:
     else:
         print("SHA256SUMS not present, so the files were not verified.")
 
-    print(f"\nArchive in {out}. It is gitignored. See README section 3, Tier 2.")
+    print(f"\nArchive in {out}. It is gitignored. See docs/reproduce.md.")
     return 0
 
 

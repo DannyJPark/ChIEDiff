@@ -14,6 +14,9 @@ writes the grouped list the rest of the pipeline expects:
 Reconstruction follows the sampler's own convention: coordinates are cast to float64
 (OpenBabel's SetVector rejects float32), atom types are decoded with the `add_aromatic`
 encoding, and per-atom affinity weights are ones, which is what the released model stores.
+The aromatic flags are computed and passed, but reconstruct_from_generated runs in its
+basic mode and derives aromaticity from the geometry instead, which is the same call the
+interaction profiling makes.
 
 Docking scores are NOT added here. They come from scripts/vina_meeko_dock.py and
 scripts/dock_engines.py, which run on the exported SDFs further down the pipeline.
@@ -47,8 +50,14 @@ RDLogger.DisableLog('rdApp.*')
 
 def canonical_ligand_files(path):
     import json
+    if not os.path.isfile(path):
+        sys.exit(f'no pocket order at {path}. It ships as data/test_pocket_order.json; '
+                 f'see data/README.md.')
     with open(path) as fh:
-        return json.load(fh)
+        canon = json.load(fh)
+    if not isinstance(canon, list) or not all(isinstance(x, str) for x in canon):
+        sys.exit(f'{path} is not a list of ligand filenames')
+    return canon
 
 
 def rebuild_mol(raw, atom_enc_mode='add_aromatic'):
@@ -79,12 +88,17 @@ def chem_results_of(mol):
 
 
 def pocket_dirs(base):
-    """{pocket_idx: path} for <base>/id<N> and <base>/id<N>_<tag>."""
+    """{pocket_idx: [paths]} for <base>/id<N> and <base>/id<N>_<tag>.
+
+    Several directories can map to one pocket, which is what two sampling runs of the same
+    pocket under different tags look like. They are all returned and their molecules are
+    concatenated, because keeping only one would drop the rest without saying so.
+    """
     out = {}
     for d in sorted(glob(os.path.join(base, 'id*'))):
-        m = re.match(r'id(\d+)', os.path.basename(d))
+        m = re.match(r'id(\d+)(_.*)?$', os.path.basename(d))
         if m and os.path.isdir(d):
-            out.setdefault(int(m.group(1)), d)
+            out.setdefault(int(m.group(1)), []).append(d)
     return out
 
 
@@ -107,8 +121,20 @@ def main():
     grouped = [[] for _ in canon]
     n_mol = n_bad_mol = n_bad_chem = 0
     for pi in sorted(dirs):
-        files = sorted(glob(os.path.join(dirs[pi], 'result_*.pt')),
-                       key=lambda p: int(re.search(r'result_(\d+)', p).group(1)))
+        files = []
+        for d in dirs[pi]:
+            # Sort on the basename: a --base whose own path contains "result_<digits>"
+            # would otherwise give every file the same sort key.
+            found = []
+            for f in glob(os.path.join(d, 'result_*.pt')):
+                m = re.fullmatch(r'result_(\d+)\.pt', os.path.basename(f))
+                if m is None:
+                    print(f'[warn] ignoring {f}: not result_<n>.pt', flush=True)
+                    continue
+                found.append((int(m.group(1)), f))
+            files += [f for _, f in sorted(found)]
+        if len(dirs[pi]) > 1:
+            print(f'pocket {pi:3d}: concatenating {len(dirs[pi])} directories', flush=True)
         for f in files:
             n_mol += 1
             mol = rebuild_mol(torch.load(f, map_location='cpu'), a.atom_enc_mode)

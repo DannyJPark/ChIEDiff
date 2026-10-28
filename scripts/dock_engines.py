@@ -56,11 +56,20 @@ def binary_for(engine, override=None):
 
 
 def resolve(path):
-    p = Path(path.strip())
+    """Accept a path relative to the current directory or to the repository root.
+
+    Returns None for an empty field or a path that exists in neither place, so one bad
+    pocket is skipped rather than ending the run. An empty field would otherwise become
+    Path('.'), which exists, and the engine would be handed a directory as its box.
+    """
+    path = (path or '').strip()
+    if not path:
+        return None
+    p = Path(path)
     for cand in (p, ROOT / p):
         if cand.exists():
             return cand
-    sys.exit(f'not found: {p}')
+    return None
 
 
 def count_records(path):
@@ -82,20 +91,36 @@ def run_pocket(base, row, engine, mode, binary, cpus, exhaustiveness, seed, time
     out = outdir / f'pocket{tag}_{mode}.sdf'
 
     want = count_records(sdf)
-    if count_records(out) >= want and want > 0:
-        print(f'pocket{tag} {engine} {mode}: {want} poses already present', flush=True)
+    have = count_records(out)
+    # An engine legitimately returns fewer poses than it was given, because a molecule it
+    # cannot parse is dropped. So a non-empty output counts as done. Delete the file to
+    # force a re-run.
+    if have > 0:
+        print(f'pocket{tag} {engine} {mode}: {have} poses already present '
+              f'(from {want} inputs)', flush=True)
         return out
 
+    receptor = resolve(row['receptor'])
+    if receptor is None:
+        print(f'pocket{tag} {engine} {mode}: receptor {row["receptor"]} not found, skipping',
+              flush=True)
+        return None
     if mode == 'dock':
-        modeargs = ['--autobox_ligand', str(resolve(row['ref_ligand'])),
+        ref = resolve(row.get('ref_ligand', ''))
+        if ref is None:
+            # The export writes an empty ref_ligand when the crystal ligand is missing, and
+            # dock mode has no box without it.
+            print(f'pocket{tag} {engine} dock: no reference ligand for the box, skipping',
+                  flush=True)
+            return None
+        modeargs = ['--autobox_ligand', str(ref),
                     '--exhaustiveness', str(exhaustiveness),
                     '--num_modes', '1', '--seed', str(seed)]
     else:
         modeargs = ['--minimize']
 
-    cmd = [binary, '-r', str(resolve(row['receptor'])), '-l', str(sdf)] + scoring + modeargs
-    if engine != 'gnina':                       # gnina has no --cpu
-        cmd += ['--cpu', str(cpus)]
+    cmd = [binary, '-r', str(receptor), '-l', str(sdf)] + scoring + modeargs
+    cmd += ['--cpu', str(cpus)]
     # The scratch file must keep the .sdf extension: smina and gnina pick the output format
     # from it and exit 255 on anything else, writing nothing.
     tmp = outdir / f'.pocket{tag}_{mode}.partial.{os.getpid()}.sdf'

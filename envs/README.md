@@ -1,13 +1,13 @@
 # Environments
 
-Five, and they cannot be merged. The measurement instruments disagree about RDKit and
+Four, and they cannot be merged. The measurement instruments disagree about RDKit and
 NumPy by two major versions, and the reported numbers depend on which version measured
 them.
 
 Every version below was confirmed by **importing the module in that environment**, not by
 reading `conda list`. That distinction matters here: several of these environments carry
 duplicate `.dist-info` metadata from installs that were later overwritten, so `conda list`
-reports a version that is not the one on disk. For `meekovina`, `conda list` claims RDKit
+reports a version that is not the one on disk. For `ged-vina`, `conda list` claims RDKit
 2025.3.3 and pandas 1.4.1 while the interpreter actually imports 2024.03.6 and 2.1.4.
 If you need to re-verify, import the module rather than trusting the metadata.
 

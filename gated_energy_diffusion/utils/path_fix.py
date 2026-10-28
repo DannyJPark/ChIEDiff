@@ -35,7 +35,6 @@ def fix_checkpoint_data_paths(ckpt, logger=None):
         """Normalize a data path to ./data/..."""
         if p is None:
             return p
-        basename = os.path.basename(p)
         # Checkpoints store the dataset path they were trained with, which need not exist on
         # the machine that loads them. These prefixes are remapped onto ./data/ so a checkpoint
         # trained elsewhere still loads. Ordered longest-first, so a lustre or scratch2 path is

@@ -23,7 +23,7 @@
 #
 # The archived cohort was generated in three chunks of 24, then 2, then 76, using
 # START_INDEX. A single 100-molecule run at the same seed produces a different molecule set,
-# and the sampler does not reproduce individual molecules. See README section 6.3.
+# and the sampler does not reproduce individual molecules. See the reproducibility notes in README.md.
 # =========================================================================
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-.}"

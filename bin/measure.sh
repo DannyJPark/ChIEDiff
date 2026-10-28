@@ -34,18 +34,24 @@ while [ $# -gt 0 ]; do
         --pockets)   POCKETS="$2"; shift 2 ;;
         --receptors) RECEPTORS="$2"; shift 2 ;;
         --workers)   WORKERS="$2"; shift 2 ;;
-        -h|--help)   sed -n '2,17p' "$0"; exit 0 ;;
+        -h|--help)   sed -n '2,16p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
 [ -n "$TAG" ] || { echo "--tag <name> is required (names the output under eval_out/)" >&2; exit 2; }
 [ -n "$PT$BASE" ] || { echo "pass --pt <grouped .pt> or --base <sampler output dir>" >&2; exit 2; }
 
-# --pockets accepts 0-4 or 3,7,11; the workers take a space-separated list.
-case "$POCKETS" in
-    *-*) PK_LIST=$(seq "${POCKETS%-*}" "${POCKETS#*-}" | tr '\n' ' ') ;;
-    *)   PK_LIST=$(echo "$POCKETS" | tr ',' ' ') ;;
-esac
+# --pockets accepts any comma-separated mixture of single indices and A-B ranges, such as
+# "0-4", "3,7,11" or "0-4,9". The workers take a space-separated list of integers, while
+# PLIP takes the string form unchanged.
+PK_LIST=$(echo "$POCKETS" | tr ',' '\n' | while read -r part; do
+    case "$part" in
+        '')  : ;;
+        *-*) seq "${part%-*}" "${part#*-}" || exit 1 ;;
+        *)   echo "$part" ;;
+    esac
+done | tr '\n' ' ')
+[ -n "${PK_LIST// /}" ] || { echo "could not read --pockets '$POCKETS'" >&2; exit 2; }
 
 OUT="eval_out/$TAG"
 step() { echo; echo "=== $* ==="; }
@@ -55,7 +61,7 @@ echo "tag=$TAG  pockets=$POCKETS  receptors=$RECEPTORS  workers=$WORKERS"
 [ -d "$RECEPTORS" ] || {
     echo
     echo "receptors not found: $RECEPTORS"
-    echo "Fetch them from the data archive (README section 2), or regenerate the chain-remapped"
+    echo "Fetch them from the data archive (see data/README.md), or regenerate the chain-remapped"
     echo "copies from your own CrossDocked2020 download:"
     echo "    python scripts/make_chainfix_receptors.py --test_set data/test_set"
     exit 1
@@ -72,7 +78,15 @@ fi
 # ---- 2. per-pocket SDFs, which every instrument below reads ------------------------
 have "$KG" || exit 1
 step "export per-pocket SDFs (assigns the p<NNN>_m<MMMM> names)"
-$KG scripts/eval_export_sdf.py --pt "$PT" --out "$OUT" || exit 1
+# --test_set is the root the manifest's receptor and ref_ligand paths are built from, so
+# every later step inherits it. It has to be the chain-remapped copies, or PoseCheck and
+# ProLIF measure twelve pockets against a partial receptor and report no error.
+$KG scripts/eval_export_sdf.py --pt "$PT" --out "$OUT" --test_set "$RECEPTORS" || exit 1
+[ "$(wc -l < "$OUT/manifest.csv" 2>/dev/null || echo 0)" -gt 1 ] || {
+    echo "the export matched no pocket. Check that $RECEPTORS holds <pocket>/<pdb>_rec.pdb" >&2
+    echo "and the reference ligands: scripts/make_chainfix_receptors.py writes both." >&2
+    exit 1
+}
 
 # ---- 3. docking -------------------------------------------------------------------
 step "AutoDock Vina: score_only, minimize and dock, with an exact meeko atom map"
@@ -88,7 +102,7 @@ echo "  External binaries, installed from their own upstreams; see envs/README.m
 for eng in smina vinardo gnina; do
     if command -v "$eng" >/dev/null || { [ "$eng" = vinardo ] && command -v smina >/dev/null; }; then
         for mode in dock min; do
-            python3 scripts/dock_engines.py --dir "$OUT" --engine "$eng" --mode "$mode" \
+            $KG scripts/dock_engines.py --dir "$OUT" --engine "$eng" --mode "$mode" \
                 --pockets $PK_LIST --cpus "$WORKERS" \
                 || echo "  $eng $mode reported a failure; continuing"
         done

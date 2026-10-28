@@ -172,7 +172,6 @@ class PocketLigandPairDataset(Dataset):
         self.db = None
         self.keys = None
         self.affinity_info = None
-        self._warned_missing = set()  # Track warned missing samples to avoid spam
 
         if not os.path.exists(self.processed_path):
             print(f'{self.processed_path} does not exist, begin processing data')
@@ -204,8 +203,10 @@ class PocketLigandPairDataset(Dataset):
         self.affinity_info = affinity_info
 
     def _connect_db(self):
-        """
-            Establish read-only database connection
+        """Open the LMDB.
+
+        Writable, not read-only: a record without an `affinity` entry has one injected and
+        written back by _inject_affinity, so the database is modified in place on first use.
         """
         assert self.db is None, 'A connection has already been opened.'
         self.db = lmdb.open(
@@ -333,14 +334,12 @@ class PocketLigandPairDataset(Dataset):
                 key = self._filename_to_key[idx]
                 original_idx = self.keys.index(key) if key in self.keys else 0
             else:
-                # Sample not found in LMDB - warn once and use first sample as fallback
-                if idx not in self._warned_missing:
-                    import warnings
-                    warnings.warn(f"Sample {idx[0][:50]}... not found in LMDB. Using first available sample as fallback.")
-                    self._warned_missing.add(idx)
-                # Use first available sample
-                key = self.keys[0]
-                original_idx = 0
+                # Substituting another record here would train or evaluate on a different
+                # pocket than the split asked for, and the only signal would be a warning.
+                raise KeyError(
+                    f"{idx[0]} is in the split but not in the LMDB at {self.processed_path}. "
+                    f"The split indexes one exact build of the database, so a rebuilt or "
+                    f"partial LMDB silently shifts every pocket. See data/README.md.")
         # Handle case where idx is a tuple (extract first element)
         elif isinstance(idx, tuple):
             idx = idx[0]
@@ -349,9 +348,10 @@ class PocketLigandPairDataset(Dataset):
         # Handle case where idx is a string - try to convert to int first
         elif isinstance(idx, str):
             try:
-                idx = int(idx)
+                # A decimal string is an index, so resolve it through the integer branch.
+                return self.get_ori_data(int(idx))
             except ValueError:
-                # If conversion fails, treat it as a key
+                # Anything else is an LMDB key.
                 key = idx.encode()
                 original_idx = self.keys.index(key) if key in self.keys else 0
         # Handle case where idx is bytes (direct key)

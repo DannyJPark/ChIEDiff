@@ -25,6 +25,20 @@ Grouping by directory merges those pairs and shifts every index after them, with
 a plausible-looking result. Every measurement step reads this file so that the SDF exports,
 the docking outputs and the interaction profiles all agree on which pocket is pocket *i*.
 
+It is not a separate source of truth. It is the test split's own order, and once the LMDB is
+in place you can re-derive it and check all 100 entries:
+
+```python
+import json, torch
+from gated_energy_diffusion.datasets.pl_pair_dataset import PocketLigandPairDataset
+
+ds = PocketLigandPairDataset('data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb')
+split = torch.load('data/crossdocked_pocket10_pose_split.pt')
+canon = json.load(open('data/test_pocket_order.json'))
+derived = [ds.get_ori_data(int(i))['ligand_filename'] for i in split['test']]
+assert derived == canon, 'the shipped pocket order does not match this LMDB'
+```
+
 ## From the archive
 
 | Path after download | Size | What it is |
@@ -33,7 +47,7 @@ the docking outputs and the interaction profiles all agree on which pocket is po
 | `data/test_set/` | 82 MB | the 100 test receptors and their reference ligands |
 | `data/test_set_chainfix/` | 82 MB | the same receptors with their chain copies written into the chain column |
 | `archive/chiediff_weights_iter1195000.pt` | 33 MB | the released weights |
-| `archive/chiediff_generated_molecules.pt` | 65 MB | the 10,000 generated molecules with their docking scores |
+| `archive/chiediff_generated_molecules.pt` | 65 MB | the 9,999 generated molecules with their docking scores |
 | `archive/measurements/` | 66 MB | the per-pocket measurement outputs behind every table |
 
 ## Why the LMDB is distributed rather than rebuilt

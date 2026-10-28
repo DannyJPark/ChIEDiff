@@ -40,17 +40,19 @@ OUT_SUB = 'posebusters'
 
 def resolve(path):
     """manifest.csv stores receptor paths relative to wherever the export ran, so accept
-    both the current directory and the repository root."""
+    both the current directory and the repository root. Returns None if neither exists, so
+    one unreadable pocket does not abandon the rest."""
     p = Path(path.strip())
     for cand in (p, ROOT / p):
         if cand.exists():
             return cand
-    sys.exit(f'receptor not found: {p} (tried {p.resolve()} and {ROOT / p})')
+    return None
 
 
 def one_molecule(args):
     """-> (name, {column: value}) for a single molecule, never raising."""
-    name, sdf_path, receptor, bust, config, timeout = args
+    key, sdf_path, receptor, bust, config, timeout = args
+    _, name = key
     cmd = ['timeout', str(timeout), bust, sdf_path, '-p', receptor,
            '--outfmt', 'csv', '--config', config]
     env = dict(os.environ, OMP_NUM_THREADS='1', MKL_NUM_THREADS='1',
@@ -66,25 +68,30 @@ def one_molecule(args):
         else:
             tail = (r.stderr or '').strip().splitlines()
             why = f'rc={r.returncode}: {tail[-1][:160]}' if tail else f'rc={r.returncode}'
-        return name, {'molecule': name, 'error': why, 'seconds': round(secs, 1)}
+        return key, {'molecule': name, 'error': why, 'seconds': round(secs, 1)}
     rows = list(csv.DictReader(lines))
     rec = dict(rows[0])
     rec.pop('file', None)                       # a path in a temporary directory
     rec['molecule'] = name
     rec['error'] = ''
     rec['seconds'] = round(secs, 1)
-    return name, rec
+    return key, rec
 
 
 def molecules_of(sdf):
-    """(name, single-molecule SDF text) per record, read as text so nothing is re-perceived."""
+    """(name, single-molecule SDF text) per record, read as text so nothing is re-perceived.
+
+    A record is kept even when the file ends without a $$$$ terminator, because dropping it
+    would leave a molecule out of the CSV with nothing to show that it was ever there.
+    """
     out, block, idx = [], [], 0
     for line in open(sdf):
         block.append(line)
         if line.startswith('$$$$'):
-            name = block[0].strip() or f'm{idx:04d}'
-            out.append((name, ''.join(block)))
+            out.append((block[0].strip() or f'm{idx:04d}', ''.join(block)))
             block, idx = [], idx + 1
+    if any(line.strip() for line in block):
+        out.append((block[0].strip() or f'm{idx:04d}', ''.join(block) + '$$$$\n'))
     return out
 
 
@@ -104,29 +111,41 @@ def evaluate(base, bust, config, workers, timeout, pockets=None):
         dest = outdir / f'pocket{tag}.csv'
         if not sdf.is_file() or dest.is_file():
             continue
-        receptor = str(resolve(row['receptor']))
+        rec = resolve(row['receptor'])
+        if rec is None:
+            print(f'pocket{tag}: receptor {row["receptor"]} not found, skipping', flush=True)
+            continue
+        receptor = str(rec)
         mols = molecules_of(sdf)
+        if not mols:
+            print(f'pocket{tag}: the SDF holds no records', flush=True)
+            with open(dest, 'w', newline='') as fh:
+                fh.write('molecule,error,seconds\n')
+            continue
         work = tempfile.mkdtemp(prefix=f'pb_{tag}_')
         try:
             tasks = []
-            for name, text in mols:
-                path = os.path.join(work, f'{name}.sdf')
+            for i, (name, text) in enumerate(mols):
+                # Index the scratch file rather than naming it after the molecule: an SDF
+                # title may contain a slash or repeat, which would respectively fail to open
+                # and silently overwrite another molecule's input.
+                path = os.path.join(work, f'{i:05d}.sdf')
                 with open(path, 'w') as fh:
                     fh.write(text)
-                tasks.append((name, path, receptor, bust, config, timeout))
+                tasks.append(((i, name), path, receptor, bust, config, timeout))
             t0 = time.time()
             with ThreadPoolExecutor(workers) as ex:
                 results = dict(ex.map(one_molecule, tasks))
         finally:
             shutil.rmtree(work, ignore_errors=True)
 
-        rows = [results[name] for name, _ in mols]
-        fields = ['molecule'] + [k for k in rows[0] if k not in ('molecule', 'error', 'seconds')]
-        for rec in rows:                          # a failed row has only molecule/error/seconds
-            for k in rec:
-                if k not in fields:
-                    fields.append(k)
-        fields += [f for f in ('error', 'seconds') if f not in fields]
+        rows = [results[(i, name)] for i, (name, _) in enumerate(mols)]
+        # Collect the check columns over every row, because a row that failed carries only
+        # molecule/error/seconds. Sorting them keeps the header identical across pockets
+        # whatever order the rows happen to be in.
+        checks = sorted({k for rec in rows for k in rec
+                         if k not in ('molecule', 'error', 'seconds')})
+        fields = ['molecule'] + checks + ['error', 'seconds']
         tmp = dest.with_suffix('.csv.tmp')
         with open(tmp, 'w', newline='') as fh:
             w = csv.DictWriter(fh, fieldnames=fields, restval='')

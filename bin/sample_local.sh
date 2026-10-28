@@ -8,12 +8,12 @@
 #
 # Cost. One pocket at 100 molecules is roughly an hour on a 24 GB card, so the full 100-pocket
 # benchmark takes days sequentially, and --pockets defaults to 0-4. The archived molecules ship
-# with the data, and `make tables` rebuilds every reported number without sampling at all.
+# with the data, and `reproduction.ipynb` rebuilds every reported number without sampling at all.
 #
 # Re-runnable: a pocket whose first result file exists is skipped.
 #
 # OMP_NUM_THREADS=1 is set because run-to-run comparability requires a single thread. Even so,
-# the sampler does not reproduce individual molecules. See README section 6.4.
+# the sampler does not reproduce individual molecules. See the reproducibility notes in README.md.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -32,7 +32,7 @@ while [ $# -gt 0 ]; do
         --result)  RESULT="$2"; shift 2 ;;
         --data)    DATA="$2"; shift 2 ;;
         --split)   SPLIT="$2"; shift 2 ;;
-        -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -67,4 +67,4 @@ for i in $(seq "$FIRST" "$LAST"); do
 done
 
 echo
-echo "Sampling done. Next: bash bin/measure.sh --samples $RESULT --tag mymodel --pockets $POCKETS"
+echo "Sampling done. Next: bash bin/measure.sh --base $RESULT --tag mymodel --pockets $POCKETS"

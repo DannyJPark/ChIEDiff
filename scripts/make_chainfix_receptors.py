@@ -20,6 +20,7 @@ Output:
 """
 import argparse
 import hashlib
+import shutil
 import json
 import sys
 from pathlib import Path
@@ -73,12 +74,22 @@ def main():
             "sha256": hashlib.sha256(text.encode()).hexdigest()}
         if h1 != k1:
             bad.append(rec)
+    # Copy the reference ligands across too. The export step reads the receptor AND the
+    # reference ligand from one --test_set root, so the output is only usable as a drop-in
+    # replacement if both are present.
+    n_lig = 0
+    for sdf in test_set.glob('*/*.sdf'):
+        dest = OUT / sdf.relative_to(test_set)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(sdf, dest)
+        n_lig += 1
+
     (OUT / "manifest.json").write_text(json.dumps(
         {"source": "scripts/make_chainfix_receptors.py (plip_interactions.remap_chains)",
          "n_receptors": len(receptors), "receptors": report}, indent=1) + "\n")
     fixed = [r for r, v in report.items() if v["collisions_before"] > 0]
     relabeled = [r for r, v in report.items() if v["chain_column_changed"]]
-    print(f"{len(receptors)} receptors written to {OUT}")
+    print(f"{len(receptors)} receptors and {n_lig} ligand files written to {OUT}")
     print(f"  had Biopython key collisions before: {len(fixed)}")
     for r in fixed:
         v = report[r]

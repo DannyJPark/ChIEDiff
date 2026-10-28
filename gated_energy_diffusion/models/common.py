@@ -9,7 +9,13 @@ class GaussianSmearing(nn.Module):
         self.start = start
         self.stop = stop
         self.num_gaussians = num_gaussians
-        # Non-uniform offsets rather than a uniform linspace over [start, stop].
+        # Non-uniform offsets rather than a uniform linspace over [start, stop]: the centres
+        # are dense between 1 and 3 A, where the interaction terms vary fastest, and sparse
+        # out to 10 A. Two consequences, both inherited and both load-bearing for the released
+        # weights, so neither is changed here. The buffer has 20 centres whatever
+        # num_gaussians says, and that argument is reported by __repr__ but never read. And
+        # the width comes from the first gap, 1 A, while most gaps are 0.25 A, so the
+        # basis functions overlap heavily in the dense region.
         offset = torch.tensor([0, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5, 4, 4.5, 5, 5.5, 6, 7, 8, 9, 10])
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer('offset', offset)

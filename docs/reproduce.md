@@ -32,7 +32,7 @@ worth reporting rather than reconciling by hand.
 
 ## Re-measuring the molecules (hours to days)
 
-This re-derives the per-molecule measurements from the molecules. It needs four more
+This re-derives the per-molecule measurements from the molecules. It needs three more
 environments and three external binaries.
 
 ### Environments
@@ -145,7 +145,7 @@ file every measurement step reads, and `bin/measure.sh --base` does both in one 
 | individual molecules from a fresh sampling run | no |
 
 The sampler does not reproduce individual molecules, and this is a property of the method
-rather than of this release. The affinity position gradient is a second backward pass over a
+rather than of this repository. The affinity position gradient is a second backward pass over a
 graph the first pass retained, and re-traversing it accumulates in a different floating-point
 order each time, about 2.4e-07. A thousand stochastic steps at guidance scale 25 grow that
 into a different molecule. The archived molecule set is authoritative for molecular identity.
@@ -158,7 +158,7 @@ into a different molecule. The archived molecule set is authoritative for molecu
 |---|---|
 | `ModuleNotFoundError: gated_energy_diffusion` | run from the repository root, or `pip install -e .` |
 | `AssertionError: ... requires per-atom XS flags` | the training transform list is missing `FeaturizeVinaAtomTypes`. Intended behaviour |
-| `ValueError: use_dual_head_sam_pl=True ...` | a configuration this release does not implement. Use `configs/train.yml` |
+| `ValueError: use_dual_head_sam_pl=True ...` | a configuration this repository does not implement. Use `configs/train.yml` |
 | `no such dataset` from a launcher | the LMDB is not in `data/`. See `data/README.md` |
 | `receptor not found` from a worker | `manifest.csv` holds paths relative to where the export ran. Run from the repository root |
 | hydrophobic contact counts disagree with the paper | ProLIF is not 2.2.0 |

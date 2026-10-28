@@ -18,7 +18,7 @@ Reproducibility notes:
     two otherwise identical runs differ by 10 to 19 atom types, and at `OMP_NUM_THREADS=8`
     by 6 to 7. Only at one thread are they bitwise identical. Even then the sampler does not
     reproduce individual molecules across different chunkings, so a fresh run reproduces the
-    reported statistics rather than the molecule identities. See README section 6.
+    reported statistics rather than the molecule identities. See the reproducibility notes in README.md.
 
 Usage:
     OMP_NUM_THREADS=1 python bin/sample.py --ckpt <checkpoint>.pt --data_id 0 \
