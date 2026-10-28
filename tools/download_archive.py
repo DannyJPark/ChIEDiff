@@ -28,6 +28,8 @@ def parse_args():
     p.add_argument("--doi", required=True,
                    help="Zenodo DOI of the data/weights record, e.g. 10.5281/zenodo.1234567")
     p.add_argument("--out", default=str(ROOT / "archive"))
+    p.add_argument("--no-extract", action="store_true",
+                   help="download and verify only, leaving the tarballs packed")
     p.add_argument("--only", nargs="*", metavar="NAME",
                    help="fetch only these filenames (default: all)")
     p.add_argument("--list", action="store_true", help="list the record's files and exit")
@@ -80,6 +82,38 @@ def download(url: str, dest: Path, size: int | None) -> None:
                 print(f"\r    {done / 1e6:7.1f} MB", end="", flush=True)
     print()
     tmp.replace(dest)
+
+
+def unpack(out: Path) -> None:
+    """Extract the archive's tarballs where the pipeline expects to find them.
+
+    The receptors go to data/, because every worker resolves a manifest path relative to
+    the repository root, and the measurements stay beside the archive. Extraction is
+    skipped when the destination already holds files, so re-running is cheap. Members with
+    an absolute path or a parent reference are refused rather than written.
+    """
+    import tarfile
+
+    targets = {"chiediff_receptors.tar.gz": ROOT / "data",
+               "chiediff_measurements.tar.gz": out / "measurements"}
+    for name, dest in targets.items():
+        src = out / name
+        if not src.is_file():
+            continue
+        if dest.is_dir() and any(dest.iterdir()):
+            print(f"  {name}: {dest.relative_to(ROOT)} already populated, not extracting")
+            continue
+        dest.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(src) as tar:
+            members = []
+            for m in tar.getmembers():
+                p = Path(m.name)
+                if p.is_absolute() or ".." in p.parts:
+                    sys.exit(f"{name} contains an unsafe path: {m.name}")
+                members.append(m)
+            print(f"  {name}: extracting {len(members)} members to "
+                  f"{dest.relative_to(ROOT)}")
+            tar.extractall(dest, members=members)
 
 
 def main() -> int:
@@ -146,6 +180,9 @@ def main() -> int:
         print(f"\n{checked} file(s) verified.")
     else:
         print("SHA256SUMS not present, so the files were not verified.")
+
+    if not args.no_extract:
+        unpack(out)
 
     print(f"\nArchive in {out}. It is gitignored. See docs/reproduce.md.")
     return 0

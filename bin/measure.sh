@@ -99,15 +99,22 @@ fi
 
 step "smina, Vinardo and gnina: re-dock and re-minimise"
 echo "  External binaries, installed from their own upstreams; see envs/README.md."
+have_engine() {
+    # vinardo is smina with another scoring function, so both come from $SMINA.
+    case "$1" in
+        gnina) [ -x "${GNINA:-}" ] || command -v gnina >/dev/null ;;
+        *)     [ -x "${SMINA:-}" ] || command -v smina >/dev/null ;;
+    esac
+}
 for eng in smina vinardo gnina; do
-    if command -v "$eng" >/dev/null || { [ "$eng" = vinardo ] && command -v smina >/dev/null; }; then
+    if have_engine "$eng"; then
         for mode in dock min; do
             $KG scripts/dock_engines.py --dir "$OUT" --engine "$eng" --mode "$mode" \
                 --pockets $PK_LIST --cpus "$WORKERS" \
                 || echo "  $eng $mode reported a failure; continuing"
         done
     else
-        echo "  SKIPPED $eng: not on PATH."
+        echo "  SKIPPED $eng: not on PATH and not named by \$SMINA or \$GNINA."
     fi
 done
 
@@ -140,7 +147,8 @@ fi
 
 step "PLIP interaction profiling"
 if have "$KG"; then
-    $KG scripts/plip_interactions.py --pt "$PT" --tag "$TAG" --out "eval_plip/$TAG" \
+    # --out is the parent: plip_interactions appends --tag to it itself.
+    $KG scripts/plip_interactions.py --pt "$PT" --tag "$TAG" --out "eval_plip" \
         --test_set "$RECEPTORS" --pockets "$POCKETS" \
         || echo "  PLIP reported a failure; continuing"
 fi

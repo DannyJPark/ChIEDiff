@@ -54,8 +54,9 @@ through `$SMINA` and `$GNINA`.
 
 ### Receptors
 
-The archive ships both the test receptors and the chain-remapped copies. To regenerate the
-copies from your own CrossDocked2020 download:
+The archive's receptor tarball unpacks to `data/test_set` and `data/test_set_chainfix`,
+which is where every measurement step looks. To regenerate the chain-remapped copies from
+your own CrossDocked2020 download instead:
 
 ```bash
 python scripts/make_chainfix_receptors.py --test_set data/test_set
@@ -103,14 +104,19 @@ python bin/train.py --config configs/train.yml --tag myrun
 ```
 
 The released checkpoint is iteration 1,195,000 at batch size 2 with 2 accumulation steps,
-roughly a week on one 24 GB card. The trainer checkpoints continuously and `--resume <run dir>`
-picks up where it stopped.
+roughly a week on one 24 GB card. The trainer checkpoints every `--save_freq` iterations and
+defaults to the configuration's `val_freq`, so a short run needs a smaller value to write
+anything. `--train_report_iter` sets how often the loss is logged, and `--resume <run dir>`
+picks up where a stopped run left off.
 
-Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb` from the data
-archive. It is distributed rather than rebuilt because it carries the affinity labels the
-objective reads and the repository has no script that can put them back, and it cannot be
-substituted because the split is a list of integer indices into its byte-sorted key order.
-`data/README.md` has the detail.
+Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the 3.8 GB
+processed training set, and **that file is not in the data archive**. It cannot be rebuilt
+from CrossDocked2020 with the code here, because it carries the affinity labels the objective
+reads and the repository has no script that can put them back, and it cannot be substituted
+either, because the split is a list of integer indices into its byte-sorted key order.
+
+So a retrained model is not a reproduction of the released weights. `data/README.md` has the
+detail, and the two tiers above do not depend on this file.
 
 Two things to know before reading anything into a retrained model:
 
@@ -125,7 +131,7 @@ Two things to know before reading anything into a retrained model:
 
 ```bash
 bash bin/sample_local.sh --ckpt archive/chiediff_weights_iter1195000.pt --pockets 0-4
-python scripts/group_samples.py --base results/samples --out results/myrun.pt
+python scripts/group_samples.py --base results/generated --out results/myrun.pt
 ```
 
 Sequential, one pocket at a time, resumable, about an hour per pocket at 100 molecules on a

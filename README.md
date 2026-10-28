@@ -76,10 +76,15 @@ python bin/train.py --config configs/train.yml --tag myrun --resume logs_diffusi
 ```
 
 The released checkpoint is iteration 1,195,000 at batch size 2 with 2 accumulation steps,
-which is on the order of a week on one 24 GB card. Training needs the processed LMDB from the
-data archive. It cannot be rebuilt from CrossDocked2020 with the code here, because it carries
-the affinity labels the objective reads, and it cannot be substituted either, because the
-split is a list of integer indices into its key order. `data/README.md` has the detail.
+which is on the order of a week on one 24 GB card. `--train_report_iter` and `--save_freq`
+control how often it logs and checkpoints.
+
+Training needs the 3.8 GB processed LMDB, and **that file is not in the data archive**, which
+holds the weights, the molecules, the measurements and the receptors. It cannot be rebuilt
+from CrossDocked2020 with the code here, because it carries the affinity labels the objective
+reads, and it cannot be substituted either, because the split is a list of integer indices
+into its key order. So sampling and re-measurement reproduce from the archive and training
+from scratch does not. `data/README.md` has the detail.
 
 The interaction-energy weight ramps as `w_m = 0.05 * min(m / 200000, 1)` over optimizer
 iterations. The energy is evaluated at the predicted clean coordinates against protein
@@ -96,6 +101,7 @@ per-atom gradient directions for 41% of atoms.
 bash bin/sample_local.sh --ckpt archive/chiediff_weights_iter1195000.pt --pockets 0-4
 ```
 
+It writes to `results/generated` by default, which is what `bin/measure.sh --base` expects.
 About an hour per pocket at 100 molecules on a 24 GB card, sequential and resumable. Only
 `head1_only` guidance is implemented. The two channels are asymmetric: positions use
 grad log A-hat and atom types use grad A-hat, matching the sampling algorithm in the paper.

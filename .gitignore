@@ -22,6 +22,9 @@ checkpoints/
 *_filename_mapping.pkl
 eval_out/
 eval_plip/
+results/generated/
+results/samples/
+results/*_grouped.pt
 
 # Downloaded archive contents: weights, molecules, receptors and the training LMDB.
 # tools/download_archive.py populates these. They carry their own DOI.

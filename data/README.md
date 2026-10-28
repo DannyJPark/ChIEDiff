@@ -41,25 +41,35 @@ assert derived == canon, 'the shipped pocket order does not match this LMDB'
 
 ## From the archive
 
-| Path after download | Size | What it is |
+| Path after download | Download | What it is |
 |---|---|---|
-| `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb` | 1.4 GB | the processed training set that the released weights were trained on |
-| `data/test_set/` | 82 MB | the 100 test receptors and their reference ligands |
-| `data/test_set_chainfix/` | 82 MB | the same receptors with their chain copies written into the chain column |
 | `archive/chiediff_weights_iter1195000.pt` | 33 MB | the released weights |
 | `archive/chiediff_generated_molecules.pt` | 65 MB | the 9,999 generated molecules with their docking scores |
-| `archive/measurements/` | 66 MB | the per-pocket measurement outputs behind every table |
+| `archive/measurements/` | 66 MB packed | the per-pocket measurement outputs behind every table |
+| `data/test_set/`, `data/test_set_chainfix/` | 48 MB packed, 190 MB unpacked | the 100 test receptors with their reference ligands, and the chain-remapped copies |
 
-## Why the LMDB is distributed rather than rebuilt
+The downloader unpacks the two tarballs into those locations. Pass `--no-extract` to leave
+them packed.
 
-The processed LMDB carries the Vina affinity labels the training objective reads, and those
-were written into it by an earlier run. The repository does not contain a script that can put
-them back, so the LMDB cannot be regenerated from CrossDocked2020 with what is here.
+## The training LMDB is not in the archive
+
+The archive holds the weights, the generated molecules, the measurements and the receptors.
+It does **not** hold `crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the 3.8 GB
+processed training set. So sampling from the released weights and re-measuring the molecules
+both work from the archive alone, and **training from scratch does not**.
+
+That file carries the Vina affinity labels the training objective reads, and those were
+written into it by an earlier run. The repository does not contain a script that can put them
+back, so it cannot be regenerated from CrossDocked2020 with what is here either.
 
 It also cannot be substituted. `crossdocked_pocket10_pose_split.pt` holds integer indices into
 the LMDB's key list, which is in byte-sorted order. A rebuilt LMDB that includes or skips even
 one record shifts every index, and training would proceed without complaint on a different
-split. So use the archived LMDB, or accept that your split is not ours.
+split.
+
+So a retrained model is not a reproduction of the released weights. It is a model trained on
+the same corpus under the same configuration, with a split that cannot be guaranteed to be the
+same one.
 
 The underlying data are CrossDocked2020, which is public and CC0:
 <https://bits.csb.pitt.edu/files/crossdock2020/>. The split is the one introduced by

@@ -12,7 +12,7 @@
 # partition and QoS allow.
 #
 #   sbatch -p <partitions> -q <qos> --array=0-99%24 \
-#          --export=ALL,CKPT=$PWD/archive/weights/best.pt,RESULT=./results/generated \
+#          --export=ALL,CKPT=$PWD/archive/chiediff_weights_iter1195000.pt,RESULT=./results/generated \
 #          slurm/sample_array.sbatch
 #
 # Partition and QoS are passed at submit time; listing several partitions lets the

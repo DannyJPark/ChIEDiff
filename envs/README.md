@@ -32,7 +32,8 @@ table lists them as two rows.
 | `group_samples.py`, `eval_export_sdf.py` | `ged-train` |
 | PLIP interaction profiling | `ged-train` (PLIP 3.0.0 lives here) |
 | `dock_engines.py`, which drives SMINA, Vinardo and GNINA | `ged-train` (all three are external binaries) |
-| `pose_rmsd.py`, `self_redock.py`, `strain_energy.py`, `chem_props.py` | `ged-train` |
+| `pose_rmsd.py`, `strain_energy.py`, `chem_props.py` | `ged-train` |
+| `self_redock.py`, an optional control that no pipeline step runs | `ged-train` |
 | `vina_meeko_dock.py` | `ged-vina` |
 | `eval_posecheck.py`, `eval_prolif_counts.py` | `ged-posecheck` |
 | `eval_posebusters.py`, `eval_pb_distance.py` | `ged-posebusters` |
