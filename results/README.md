@@ -72,6 +72,10 @@ Each file aggregates one cohort, and the cohorts are not interchangeable:
 ```
 
 The attrition is not independent of the model: fragmented molecules fail docking, and the
-models that fragment most lose most. A number taken from one of these files without its
+models that fragment most lose most.
+Each instrument also reports its own n, which can be smaller than the chain step it sits on,
+because an instrument drops a molecule it cannot read. PoseBusters, for instance, reports
+9,782 exported and 8,271 docking-successful for this work against the 9,857 and 8,340 above.
+Read the n printed with a table rather than assuming the chain. A number taken from one of these files without its
 cohort is not comparable with a number from another. Every table in the paper states which
 cohort it aggregates, and `reproduction.ipynb` prints the count alongside each number.

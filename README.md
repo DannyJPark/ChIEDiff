@@ -25,8 +25,13 @@ results/                  the summary numbers behind the tables; see results/REA
 reproduction.ipynb        prints every table, from results/ and from the molecules
 envs/                     four conda environments and why they cannot be merged
 docs/                     reproduce.md and known_limitations.md
+tools/download_archive.py fetches and unpacks the data archive
 slurm/                    optional batch launchers
+Makefile                  install, archive, measure, clean. Run `make` for the list
 ```
+
+`LICENSE`, `NOTICE.md`, `CITATION.cff` and `pyproject.toml` are at the top level.
+`configs/` also holds `posebusters_dock_1thread.yml`, which the two PoseBusters workers read.
 
 ## Availability and requirements
 

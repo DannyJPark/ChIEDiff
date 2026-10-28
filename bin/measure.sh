@@ -55,7 +55,15 @@ done | tr '\n' ' ')
 
 OUT="eval_out/$TAG"
 step() { echo; echo "=== $* ==="; }
-have() { [ -x "$1" ] || { echo "  SKIPPED: no interpreter at $1 (create the environments in envs/)"; return 1; }; }
+# A missing interpreter is a setup error, not a step to skip: skipping every instrument
+# would end in a clean exit with no measurements. $CONDA_BASE relocates the four paths.
+have() {
+    [ -x "$1" ] && return 0
+    echo "no interpreter at $1" >&2
+    echo "Create the environments in envs/ first, or point CONDA_BASE at your conda" >&2
+    echo "installation, or set KG, PC, PB and VN to the four interpreters directly." >&2
+    exit 1
+}
 
 echo "tag=$TAG  pockets=$POCKETS  receptors=$RECEPTORS  workers=$WORKERS"
 [ -d "$RECEPTORS" ] || {

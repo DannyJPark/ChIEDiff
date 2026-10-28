@@ -20,7 +20,7 @@ install:  ## create the training environment and install the package into it
 	@echo "Then: conda activate ged-train && pip install -e ."
 	@echo "The evaluation environments are separate; see envs/README.md."
 
-archive:  ## download the weights, molecules, receptors and training data
+archive:  ## download the weights, molecules, measurements and receptors
 	python tools/download_archive.py --doi 10.5281/zenodo.23029439
 
 measure:  ## measure the archived molecules on five pockets

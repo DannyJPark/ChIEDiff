@@ -49,8 +49,17 @@ because 2.1.0 changed the hydrophobic SMARTS and moves the contact counts. And t
 environment is called by absolute interpreter path so its RDKit cannot shadow the training
 environment's.
 
-SMINA and GNINA 1.1 are installed from their own upstreams and must be on `PATH`, or named
-through `$SMINA` and `$GNINA`.
+SMINA and GNINA are not conda packages and no environment file installs them. Fetch the
+released binaries from their own projects, make them executable and either put them on `PATH`
+or name them through `$SMINA` and `$GNINA`:
+
+- SMINA, <https://sourceforge.net/projects/smina/>. The build used here reports itself as
+  the 2019 release based on AutoDock Vina 1.1.2. Vinardo is the same binary with
+  `--scoring vinardo`, so one download covers both arms.
+- GNINA 1.1, <https://github.com/gnina/gnina/releases>. Version 1.1 rather than a later one
+  because 1.3 and above need a newer glibc than many cluster images provide.
+
+A different build of either will change its numbers, so record which one you used.
 
 ### Receptors
 

@@ -88,20 +88,29 @@ def unpack(out: Path) -> None:
     """Extract the archive's tarballs where the pipeline expects to find them.
 
     The receptors go to data/, because every worker resolves a manifest path relative to
-    the repository root, and the measurements stay beside the archive. Extraction is
-    skipped when the destination already holds files, so re-running is cheap. Members with
-    an absolute path or a parent reference are refused rather than written.
+    the repository root, and the measurements stay beside the archive.
+
+    Whether to skip is decided on the directories the tarball itself creates, not on the
+    destination. data/ always holds tracked files in any clone, so testing it would skip
+    the extraction every time and leave the receptors packed.
+
+    A member with an absolute path, a parent reference or a link is refused rather than
+    written.
     """
     import tarfile
 
-    targets = {"chiediff_receptors.tar.gz": ROOT / "data",
-               "chiediff_measurements.tar.gz": out / "measurements"}
-    for name, dest in targets.items():
+    # name -> (destination, the directories the tarball is expected to create under it)
+    targets = {"chiediff_receptors.tar.gz": (ROOT / "data",
+                                             ("test_set", "test_set_chainfix")),
+               "chiediff_measurements.tar.gz": (out / "measurements", ())}
+    for name, (dest, created) in targets.items():
         src = out / name
         if not src.is_file():
             continue
-        if dest.is_dir() and any(dest.iterdir()):
-            print(f"  {name}: {dest.relative_to(ROOT)} already populated, not extracting")
+        probes = [dest / c for c in created] or [dest]
+        if all(p.is_dir() and any(p.iterdir()) for p in probes):
+            have = ", ".join(str(p.relative_to(ROOT)) for p in probes)
+            print(f"  {name}: {have} already populated, not extracting")
             continue
         dest.mkdir(parents=True, exist_ok=True)
         with tarfile.open(src) as tar:
@@ -110,6 +119,8 @@ def unpack(out: Path) -> None:
                 p = Path(m.name)
                 if p.is_absolute() or ".." in p.parts:
                     sys.exit(f"{name} contains an unsafe path: {m.name}")
+                if m.issym() or m.islnk():
+                    sys.exit(f"{name} contains a link, which is not expected: {m.name}")
                 members.append(m)
             print(f"  {name}: extracting {len(members)} members to "
                   f"{dest.relative_to(ROOT)}")
