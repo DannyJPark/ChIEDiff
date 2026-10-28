@@ -1,19 +1,11 @@
 """The five weighted radial terms of the AutoDock Vina scoring function.
 
-Every term is a function of the SURFACE distance
+Every term takes the surface distance d = r - (R_i + R_j), the gap between the two van der
+Waals surfaces, not the centre-to-centre distance r. R_i and R_j are Vina's xs_radius values
+(XS_RADIUS_BY_Z in gated_energy_diffusion/utils/vina_types.py).
 
-    d = r - (R_i + R_j)
-
-that is, the gap between the two van der Waals surfaces, not the centre-to-centre
-distance r. R_i and R_j are Vina's ``xs_radius`` values (XS_RADIUS_BY_Z in
-gated_energy_diffusion/utils/vina_types.py). Passing r straight in shifts every term
-and changes the energy.
-
-``VINA_WEIGHT`` holds Vina's published coefficients, in the term order
-
-    [gauss1, gauss2, repulsion, hydrophobic, hbonding]
-
-so a caller stacking the five terms must stack them in exactly that order.
+VINA_WEIGHT lists the coefficients in the order [gauss1, gauss2, repulsion, hydrophobic,
+hbonding], so a caller stacking the five terms must stack them in that order.
 
 Upstream: KGDiff (MIT License, Copyright (c) 2023 CMACH508).
 """

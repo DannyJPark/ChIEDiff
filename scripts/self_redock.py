@@ -1,36 +1,25 @@
 #!/usr/bin/env python3
-"""Self-redock each CrossDocked crystal ligand into its own receptor and measure
-RMSD(crystal pose, redocked pose). This is the achievable ceiling of the pipeline, because if
-an engine cannot reproduce the known crystal pose, a generated pose cannot beat that.
+"""Self-redock one CrossDocked crystal ligand into its own receptor and measure
+RMSD(crystal pose, redocked pose), the achievable ceiling of the pipeline. It is an optional
+control that no step of bin/measure.sh runs.
 
-This is an optional control. No step of bin/measure.sh runs it.
+The protocol matches the generated-molecule redock. vinardo is smina with a different scoring
+function, so the same binary, search, box and seed, and the ceiling row isolates the scoring
+function exactly as the model rows do. RMSD is rdMolAlign.CalcRMS, non-superposed and
+symmetry-aware, as everywhere else.
 
-    python scripts/self_redock.py --manifest eval_out/mymodel/manifest.csv --pocket 0
+Sanitisation has to match the model rows arm by arm, because CalcRMS matches on element and
+bond order and so aromatic perception decides whether an exact graph match exists at all.
+pose_rmsd.py reads both the reference and the docked SDF with sanitize=False, while
+vina_meeko_dock.py reads the reference sanitised and keeps the meeko mol in memory. Mixing
+the two, aromatic against Kekule, blocks the exact match and forces the skeleton-isomorphism
+fallback, which biases RMSD downward and measures the ceiling on a more permissive instrument
+than the models it bounds. crystal_raw is therefore the reference for smina and gnina and
+crystal the reference for meeko. sanitize=True cannot be dropped everywhere, because
+unsanitised input gives meeko non-finite Gasteiger charges and writes no PDBQT.
 
-Same protocol as the generated-molecule redock:
-  smina/vinardo/gnina : --autobox_ligand <crystal> --exhaustiveness 8 --num_modes 1 --seed 42
-  vina_meeko          : crystal-ligand-centred 20A cube, exhaustiveness 16, meeko atom map
-`vinardo` is smina with --scoring vinardo, so it is the same binary, search, box and seed, and
-the ceiling row isolates the scoring function exactly as the model rows do.
-
-RMSD is rdMolAlign.CalcRMS, non-superposed and symmetry-aware, as everywhere else.
-
-Sanitisation has to match the model rows arm by arm. CalcRMS matches on element and bond
-order, so whether RDKit perceived aromaticity decides whether an exact graph match exists at
-all. The conventions are:
-    smina/gnina  (pose_rmsd.py)       reference sanitize=False, docked SDF sanitize=False
-    Vina         (vina_meeko_dock.py) reference sanitize=True, meeko mol in memory
-Reading the reference sanitised and the smina or gnina output unsanitised would be a third
-convention. Aromatic against Kekule then blocks the exact match and forces the
-skeleton-isomorphism fallback, which biases RMSD downward and measures the ceiling on a more
-permissive instrument than the models it bounds. So crystal_raw, read with sanitize=False, is
-the reference for smina and gnina, and crystal, read sanitised, is the reference for meeko.
-sanitize=True cannot be dropped everywhere, because meeko needs it. Unsanitised input gives
-non-finite Gasteiger charges and writes no PDBQT.
-
-Docked poses are kept under --pose_dir so RMSD can be recomputed without re-docking.
-
-One pocket per invocation. Writes or updates <out>/pocketNNN.csv.
+Docked poses are kept under --pose_dir so RMSD can be recomputed without re-docking. One
+pocket per invocation.
 """
 import argparse, csv, os, shutil, subprocess, sys, tempfile
 import numpy as np
@@ -48,9 +37,8 @@ def manifest_row(manifest, pocket):
     return None
 
 def rmsd_to_crystal(crystal_raw, docked_sdf):
-    """smina/gnina arm. Both sides are unsanitised, which is pose_rmsd.py's convention, so the
-    reference row is measured on the same instrument as the model rows. crystal_raw must be the
-    sanitize=False read of the reference ligand."""
+    """smina and gnina arm. Both sides are unsanitised, pose_rmsd.py's convention, so the
+    reference row is measured on the same instrument as the model rows."""
     d=next(iter(Chem.SDMolSupplier(docked_sdf, sanitize=False, removeHs=False)), None)
     if d is None: return None,'noread'
     r,meth,_=rmsd_best_effort(heavy(d), heavy(crystal_raw))
@@ -80,14 +68,11 @@ def vina_meeko_self(crystal, receptor_pdbqt, ref_centroid, out_sdf):
     v.dock(exhaustiveness=16,n_poses=1)
     aff=float(v.energies(n_poses=1)[0][0])
     back=RDKitMolCreate.from_pdbqt_mol(PDBQTMolecule(v.poses(n_poses=1),skip_typing=True))[0]
-    # Record the affinity on the pose, so the reference row can carry an AutoDock Vina column in
-    # the redocking comparison exactly as it carries smina-Vinardo and gnina.
-    # The SD tag name matches smina and gnina ('minimizedAffinity'), so one reader handles all three.
+    # The SD tag name matches smina and gnina, so one reader handles all three engines.
     back.SetProp('minimizedAffinity', f'{aff:.5f}')
     w=Chem.SDWriter(out_sdf); w.write(back); w.close()
-    # Return the in-memory mol. vina_meeko_dock.py compares against this object rather than
-    # against a re-read of the SDF, so returning it keeps the reference row on the same
-    # instrument.
+    # vina_meeko_dock.py compares against the in-memory mol rather than a re-read of the SDF,
+    # so returning it keeps the reference row on the same instrument.
     return back
 
 def main():
@@ -103,9 +88,8 @@ def main():
     if r is None: print(f'pocket {a.pocket} not in manifest'); return 0
     receptor=r['receptor'].strip(); ref=r['ref_ligand'].strip()
     receptor_pdbqt=receptor[:-4]+'.pdbqt'
-    # Two reads of the same reference ligand, as the module docstring explains. `crystal` is the
-    # sanitised one, which meeko needs. `crystal_raw` is the RMSD reference for smina and gnina,
-    # so that arm has both sides unsanitised exactly as pose_rmsd.py does.
+    # Two reads of the same reference ligand, as the module docstring explains. meeko needs the
+    # sanitised one, smina and gnina the unsanitised one.
     crystal=next(iter(Chem.SDMolSupplier(ref, removeHs=False)), None)
     crystal_raw=next(iter(Chem.SDMolSupplier(ref, sanitize=False, removeHs=False)), None)
     if crystal is None or crystal_raw is None:

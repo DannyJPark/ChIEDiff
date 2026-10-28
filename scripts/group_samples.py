@@ -1,32 +1,25 @@
 #!/usr/bin/env python3
-"""Raw sampler output -> one grouped .pt, which is what every measurement step reads.
+"""Raw sampler output to one grouped .pt, which is what every measurement step reads.
 
-    python scripts/group_samples.py --base results/samples --out results/mymodel.pt
+bin/sample.py writes one file per molecule, <base>/id<data_id>/result_<i>.pt, holding the
+predicted coordinates and atom-type indices and nothing else. This rebuilds the RDKit molecule
+from those, computes the same chem_results the published .pt files carry, and writes a list of
+per-pocket lists indexed by pocket order.
 
-bin/sample.py writes one file per molecule, `<base>/id<data_id>/result_<i>.pt`, holding the
-predicted coordinates and atom-type indices and nothing else. This rebuilds the RDKit
-molecule from those, computes the same `chem_results` the published .pt files carry, and
-writes the grouped list the rest of the pipeline expects:
+Reconstruction follows the sampler's own convention. Coordinates are cast to float64 because
+OpenBabel's SetVector rejects float32, atom types are decoded with the add_aromatic encoding,
+and per-atom affinity weights are ones, which is what the released model stores. Aromatic flags
+are computed and passed, but reconstruct_from_generated derives aromaticity from the geometry
+instead, which is the same call the interaction profiling makes.
 
-    [ [ {mol, smiles, ligand_filename, chem_results}, ... ],   # pocket 0
-      ... ]                                                     # index == pocket order
+Docking scores come from scripts/vina_meeko_dock.py and scripts/dock_engines.py, which run on
+the exported SDFs further down the pipeline.
 
-Reconstruction follows the sampler's own convention: coordinates are cast to float64
-(OpenBabel's SetVector rejects float32), atom types are decoded with the `add_aromatic`
-encoding, and per-atom affinity weights are ones, which is what the released model stores.
-The aromatic flags are computed and passed, but reconstruct_from_generated runs in its
-basic mode and derives aromaticity from the geometry instead, which is the same call the
-interaction profiling makes.
-
-Docking scores are NOT added here. They come from scripts/vina_meeko_dock.py and
-scripts/dock_engines.py, which run on the exported SDFs further down the pipeline.
-
-A molecule that cannot be reconstructed keeps its place in the list with `mol` and `smiles`
-set to None, which is the convention the published .pt files follow. It is deliberate rather
-than tidy: reconstruction fails on distorted geometry, so dropping those entries would
-shrink a pocket's denominator by an amount that depends on the model being measured, and
-would renumber every molecule after them. The downstream steps skip null entries and report
-how many they skipped.
+A molecule that cannot be reconstructed keeps its place in the list with mol and smiles set to
+None, which is the convention the published .pt files follow. Reconstruction fails on distorted
+geometry, so dropping those entries would shrink a pocket's denominator by an amount that
+depends on the model being measured, and would renumber every molecule after them. The
+downstream steps skip null entries and report how many they skipped.
 """
 import argparse
 import os
@@ -61,7 +54,7 @@ def canonical_ligand_files(path):
 
 
 def rebuild_mol(raw, atom_enc_mode='add_aromatic'):
-    """raw {'pos','v'} -> mol, or None if reconstruction fails."""
+    """Rebuild one molecule, or None if reconstruction fails."""
     if raw is None or 'pos' not in raw or 'v' not in raw:
         return None
     pos = np.asarray(raw['pos'], dtype=np.float64)
@@ -90,9 +83,8 @@ def chem_results_of(mol):
 def pocket_dirs(base):
     """{pocket_idx: [paths]} for <base>/id<N> and <base>/id<N>_<tag>.
 
-    Several directories can map to one pocket, which is what two sampling runs of the same
-    pocket under different tags look like. They are all returned and their molecules are
-    concatenated, because keeping only one would drop the rest without saying so.
+    Several directories can map to one pocket, which is what two sampling runs of the same pocket
+    under different tags look like. All of them are returned and their molecules concatenated.
     """
     out = {}
     for d in sorted(glob(os.path.join(base, 'id*'))):
@@ -123,7 +115,7 @@ def main():
     for pi in sorted(dirs):
         files = []
         for d in dirs[pi]:
-            # Sort on the basename: a --base whose own path contains "result_<digits>"
+            # Sort on the basename, because a --base whose own path contains "result_<digits>"
             # would otherwise give every file the same sort key.
             found = []
             for f in glob(os.path.join(d, 'result_*.pt')):

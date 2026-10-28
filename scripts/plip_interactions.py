@@ -1,44 +1,36 @@
 """PLIP protein-ligand interaction profiling of generated poses, one JSONL per pocket.
 
-Why PLIP and not the Vina score: the energy-guided model is trained to minimise Vina's own
-hbonding and hydrophobic terms, so scoring those molecules with Vina, or with the ramps in
-`gated_energy_diffusion/utils/vina_rules.py`, is circular. PLIP is an independent instrument. It
-types atoms chemically and applies geometric criteria that include angles, and Vina has no
-angular term at all, so agreement between the two is evidence rather than tautology.
+PLIP stands in for the Vina score because the energy-guided model is trained to minimise Vina's
+own hbonding and hydrophobic terms. PLIP types atoms chemically and applies geometric criteria
+that include angles, which Vina has no term for, so agreement between the two is evidence rather
+than tautology.
 
-Only the generated pose is profiled. The conformer in `m['mol']` equals `m['pred_pos']` exactly
-for every model. Re-docked poses live separately in `m['vina'][mode][0]['pose']` as PDBQT text,
-3 to 7 A RMSD away and with Vina-added hydrogens, so the atom count differs. Measuring
-interactions on a Vina-redocked pose would put Vina back in the loop, so those are never touched.
+Only the generated pose is profiled. The conformer in m['mol'] equals m['pred_pos'] exactly.
+Re-docked poses sit separately in m['vina'][mode][0]['pose'] as PDBQT text, 3 to 7 A RMSD away
+and with Vina-added hydrogens, and are never touched, because measuring interactions on them
+would put Vina back in the loop.
 
 Two receptor-file defects in the CrossDocked test set silently zero out PLIP if they are not
 handled. Both show up when crystal ligands are profiled as a smoke test, since those must never
 score zero.
 
-  1. Chain ids live in the segID column. Many CrossDocked receptors leave column 22 (chainID)
-     degenerate, for example GLMU_STRPN_2_459_0 is chain 'A' for all 10326 atoms, while the real
-     chain is in columns 73-76 (segID). OpenBabel keys residues on (chainID, resnum), so every
-     physical chain collapses into one logical chain. In that file 3442 of 3442 atom keys
-     collide, and in RG1_RAUSE_1_513_0 7544 of 7544 do. The merged residues then span several
-     chains and their centroids land in the middle of the complex, up to 47 A from the ligand, so
-     PLIP's binding-site selection, which takes residues whose centroid is within
-     config.BS_DIST, finds nothing and reports 0 interactions with no error. `remap_chains()`
-     rebuilds column 22 from the distinct (chainID, segID) pairs. Measured on the 100 crystal
-     ligands, 11 pockets scored (0,0), 10 of them are fixed by the remap with BS_DIST left at
-     its 7.5 A default, and 5 control pockets are bit-identical before and after. The 11th,
-     CHIA_SERMA_19_563_0, is a true zero, because its ligand is 1,4-dioxane, which has 6 heavy
-     atoms, no donors, and no hydrophobic carbons since every carbon neighbours an oxygen.
-     Raising BS_DIST instead recovers only 4 of the 11 and would need about 48 A, which is the
-     whole protein as binding site, to cover the worst case.
+  1. Chain ids live in the segID column, 73 to 76, while column 22 (chainID) is often
+     degenerate. GLMU_STRPN_2_459_0 is chain 'A' for all 10326 atoms. OpenBabel keys residues
+     on (chainID, resnum), so every physical chain collapses into one and all 3442 atom keys in
+     that file collide, as do all 7544 in RG1_RAUSE_1_513_0. The merged residues then have
+     centroids in the middle of the complex, up to 47 A from the ligand, so PLIP's binding-site
+     selection, which takes residues whose centroid falls within config.BS_DIST, finds nothing
+     and reports 0 interactions with no error. remap_chains() rebuilds column 22 from the
+     distinct (chainID, segID) pairs. Over the 100 crystal ligands 11 pockets scored (0,0), the
+     remap fixes 10 of them with BS_DIST left at its 7.5 A default, and 5 control pockets are
+     bit-identical before and after. The 11th, CHIA_SERMA_19_563_0, is a true zero, its ligand
+     being 1,4-dioxane with 6 heavy atoms, no donors and no hydrophobic carbons. Raising BS_DIST
+     instead recovers only 4 of the 11 and would need about 48 A, the whole protein, to cover
+     the worst case.
 
-  2. Receptors contain ions. The files are `protein or ion and not water` selections, so PLIP
-     detects ZN, MG and the like as additional ligands. `interaction_sets` must be keyed on the
-     ligand this script appends, 'LIG:Z:1', and never on `list(...)[0]`, or the ion's empty
-     interaction set is read instead.
-
-Usage:
-    python scripts/plip_interactions.py --pt archive/chiediff_generated_molecules.pt \
-        --tag chiediff --pockets 0-9 --out eval_plip
+  2. The receptor files are protein-or-ion selections, so PLIP reports ZN, MG and the like as
+     additional ligands. interaction_sets must be keyed on the ligand this script appends,
+     LIG:Z:1, and never on the first key, or an ion's empty interaction set is read instead.
 """
 import argparse
 import json
@@ -61,15 +53,10 @@ RDLogger.DisableLog('rdApp.*')
 _CHAIN_POOL = [c for c in string.ascii_uppercase + string.ascii_lowercase + string.digits if c != 'Z']
 
 
-# --------------------------------------------------------------------------- inputs
 def _torch_load(path):
-    """Load a .pt holding RDKit Mol objects under either torch generation.
-
-    These files were written in the training environment, whose torch 1.11 `torch.load` has no
-    `weights_only` kwarg. torch 2.6 and later default it to True and then refuse to unpickle
-    `rdkit.Chem.rdchem.Mol`, so loading from a newer environment fails without the explicit
-    False.
-    """
+    """Load a .pt holding RDKit Mol objects under either torch generation. torch 2.6 and later
+    default weights_only to True and then refuse to unpickle rdkit.Chem.rdchem.Mol, while torch
+    1.11 has no such kwarg, so the kwarg has to be tried first."""
     try:
         return torch.load(path, map_location='cpu', weights_only=False)
     except TypeError:                                        # torch < 1.13: no such kwarg
@@ -77,19 +64,13 @@ def _torch_load(path):
 
 
 def load_grouped(path):
-    """Normalise the .pt layouts to list[pocket] of list[mol_dict].
-
-    The same three layouts `scripts/eval_export_sdf.py` handles: grouped, flat and dict-wrapped.
-    A crystal-ligand reference file is flat with one entry per pocket, so it becomes 100 pockets
-    of 1 molecule, which is what the reference row needs.
-
-    Flat layouts are placed at their canonical index and never renumbered by order of appearance.
+    """Normalise a grouped, flat or dict-wrapped .pt to list[pocket] of list[mol_dict]. A
+    crystal-ligand reference file is flat with one entry per pocket and becomes 100 pockets of
+    one molecule, which is what the reference row needs. Flat layouts go to their canonical index and are never renumbered by order of appearance.
     Index i must be the CrossDocked data_id, because the p<NNN>_m<MMMM> titles this script emits
-    are joined against eval_out/<model>/ for the posecheck results and for the manifest that maps
-    a pocket to its receptor. Some released sample files appear in a different order than the
-    canonical set, in one case with 98 of 100 positions differing, so appearance order would label
-    every molecule with the wrong pocket. eval_export_sdf.py aligns the same way for the same
-    reason.
+    are joined against the posecheck results and the pocket-to-receptor manifest. Some released
+    sample files are in a different order than the canonical set, in one case with 98 of 100
+    positions differing.
 
     Alignment keys on the full ligand_filename, with a pocket-directory fallback only when that
     directory maps to exactly one index. Seven CrossDocked sites appear twice under one directory
@@ -143,11 +124,9 @@ def load_grouped(path):
 
 
 def canonical_ligand_files(path='data/test_pocket_order.json'):
-    """The canonical ligand_filename of each test pocket, in pocket order.
-
-    Same source and semantics as eval_export_sdf.canonical_ligand_files. The two have to agree,
-    or the SDF exports and the PLIP jsonl disagree on which pocket is pocket i.
-    """
+    """The canonical ligand_filename of each test pocket, in pocket order. This has to agree with
+    eval_export_sdf.canonical_ligand_files, or the SDF exports and this script's jsonl disagree
+    on which pocket is pocket i."""
     if not os.path.isfile(path):
         return []
     if path.endswith('.json'):
@@ -166,17 +145,13 @@ def canonical_ligand_files(path='data/test_pocket_order.json'):
 
 
 def load_samples(root, test_set_root):
-    """Per-sample layout: <root>/id<N>/result_*.pt holding raw `pos` and `v`, with no RDKit mol.
-
-    Some runs are stored this way, with the consolidated `*_vina_docked.pt` carrying only
-    chem_results, ligand_filename and vina, and the geometry left behind in the per-sample files.
-    The molecule is rebuilt here through the same reconstruction path the sampler's own export
-    uses, so a per-sample run stays comparable with a grouped one.
-
-    The pocket index comes from the id<N> directory name. `ligand_filename` is recovered from the
-    consolidated .pt, which shares that indexing.
+    """Read the per-sample layout <root>/id<N>/result_*.pt, which holds raw pos and v and no
+    RDKit mol, the consolidated .pt for that run carrying everything but the geometry. The
+    molecule is rebuilt through the same reconstruction path the sampler's own export uses, so a
+    per-sample run stays comparable with a grouped one. The pocket index comes from the id<N>
+    directory name and ligand_filename from the consolidated .pt, which shares it.
     """
-    # the repo root must be importable, because the script may be run from anywhere
+    # The repo root has to be importable, because the script may be run from anywhere.
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if root_dir not in sys.path:
         sys.path.insert(0, root_dir)
@@ -226,22 +201,16 @@ def load_samples(root, test_set_root):
 
 
 def paths_for(ligand_filename, test_set_root):
-    """'<POCKET>/<pdb>_<ch>_rec_..._lig_....sdf' -> (pocket, receptor.pdb).
-
-    Same mapping as eval_export_sdf.paths_for.
-    """
+    """Map a ligand_filename to (pocket, receptor pdb), as eval_export_sdf.paths_for does."""
     pocket = os.path.dirname(ligand_filename)
     stem = os.path.basename(ligand_filename).split('_rec')[0] + '_rec.pdb'
     return pocket, os.path.join(test_set_root, pocket, stem)
 
 
-# --------------------------------------------------------------------------- receptor
 def remap_chains(lines):
-    """Rewrite column 22 (chainID) from the distinct (chainID, segID) pairs.
-
-    See the first receptor-file defect in the module docstring. Returns (lines, n_chains). A file
-    that already has a single (chainID, segID) pair is returned untouched.
-    """
+    """Rewrite column 22 (chainID) from the distinct (chainID, segID) pairs and return
+    (lines, n_chains). A file with a single pair is returned untouched. See the first
+    receptor-file defect in the module docstring."""
     pairs = []
     for l in lines:
         k = (l[21], l[72:76].strip())
@@ -276,13 +245,9 @@ def write_complex(prot_lines, mol, out_path):
         f.write('\n'.join(prot_lines + lig) + '\nEND\n')
 
 
-# --------------------------------------------------------------------------- PLIP
 def plip_profile(pdb_path):
-    """Run PLIP on the complex and return the interaction profile of the appended ligand, LIG:Z:1.
-
-    Keyed explicitly on 'LIG', because the receptors carry ions that PLIP also reports as
-    ligands. See the second receptor-file defect in the module docstring.
-    """
+    """Interaction profile of the appended ligand, keyed explicitly on LIG because the receptors
+    carry ions that PLIP also reports as ligands."""
     from plip.structure.preparation import PDBComplex
     c = PDBComplex()
     c.load_pdb(pdb_path)
@@ -295,12 +260,11 @@ def plip_profile(pdb_path):
     def res(x):
         return f'{x.restype}{x.resnr}{x.reschain}'
 
-    # `pa` is the protein atom's original PDB index. It lets the interaction fingerprint be built
-    # at atom granularity as well as at residue granularity. DiffInt (JCIM 2025, 65, 71-82)
-    # defines reconstruction of a hydrogen bond as reproducing the reference bond with the correct
-    # protein atom, whereas a residue-level bit collapses three contacts to one residue into a
-    # single bit and is therefore more lenient. Both granularities are emitted.
-    # For an H-bond the protein side is the donor when protisdon, and the acceptor otherwise.
+    # pa is the protein atom's original PDB index, which lets the fingerprint be built at atom
+    # granularity as well as residue granularity. DiffInt (JCIM 2025, 65, 71-82) requires a
+    # reconstructed hydrogen bond to name the correct protein atom, whereas a residue-level bit
+    # collapses three contacts to one residue into a single bit and is more lenient. Both
+    # granularities are emitted. For an H-bond the protein side is the donor when protisdon.
     hb = [{'res': res(h), 'restype': h.restype, 'resnr': int(h.resnr), 'chain': h.reschain,
            'd_ad': round(float(h.distance_ad), 3), 'd_ah': round(float(h.distance_ah), 3),
            'angle': round(float(h.angle), 2), 'protisdon': bool(h.protisdon),
@@ -309,14 +273,11 @@ def plip_profile(pdb_path):
     hy = [{'res': res(x), 'restype': x.restype, 'resnr': int(x.resnr), 'chain': x.reschain,
            'd': round(float(x.distance), 3), 'pa': int(x.bsatom_orig_idx)}
           for x in s.hydrophobic_contacts]
-    # Atom-pair edge expansion for the group-level and ring-level interactions. PLIP reports one
-    # salt bridge per charge-centre pair and one pi-stack per ring pair, which is what
-    # n_saltbridge and n_pistack hold. NCIDiff counts these on its bipartite protein-ligand graph
-    # as a set of edges between every possible pair of a ligand motif atom and a protein motif
-    # atom, that is the cartesian product |ligand-motif atoms| x |protein-motif atoms|. The
-    # expansion reproduces NCIDiff's reference value exactly for pi-pi, 9.32 against 9.32, and
-    # closely for salt bridges, 4.26 against 4.81. It is emitted alongside the object counts so
-    # that PLIP numbers from other papers can be matched.
+    # PLIP reports one salt bridge per charge-centre pair and one pi-stack per ring pair, which
+    # is what n_saltbridge and n_pistack hold. NCIDiff instead counts the cartesian product of
+    # ligand-motif and protein-motif atoms, so that expansion is emitted alongside the object
+    # counts to make PLIP numbers from other papers comparable. It reproduces NCIDiff's reference
+    # value exactly for pi-pi, 9.32 against 9.32, and closely for salt bridges, 4.26 against 4.81.
     sb_edges = sum(len(sb.positive.atoms) * len(sb.negative.atoms)
                    for sb in list(s.saltbridge_lneg) + list(s.saltbridge_pneg))
     pp_edges = sum(len(pp.ligandring.atoms) * len(pp.proteinring.atoms) for pp in s.pistacking)
@@ -336,16 +297,14 @@ def plip_profile(pdb_path):
 
 
 def descriptors(mol):
-    """Confounder controls. Hydrophobic contact counts scale with size and greasiness, so a
-    model can inflate them simply by making bigger, fattier molecules. These columns let the
-    aggregate normalise per heavy atom and build a size-matched subset."""
+    """Confounder controls. Hydrophobic contact counts scale with size and greasiness, so these
+    columns let the aggregate normalise per heavy atom and build a size-matched subset."""
     z = [a.GetAtomicNum() for a in mol.GetAtoms() if a.GetAtomicNum() > 1]
     d = {'heavy': len(z),
          'pct_no': round(float(np.mean(np.isin(z, [7, 8]))), 4) if z else 0.0,
          'logp': np.nan, 'rings': -1, 'rotb': -1}
-    # The Crippen and ring descriptors need a sanitized molecule, so a chemically invalid
-    # generated molecule, or one that came through the sanitize=False RemoveHs path, can fail
-    # here. heavy and pct_no are pure element counts and always survive, so the size
+    # The Crippen and ring descriptors need a sanitized molecule and can fail on a chemically
+    # invalid one. heavy and pct_no are pure element counts and always survive, so the size
     # normalisation the aggregate depends on is never lost.
     try:
         d['logp'] = round(float(Crippen.MolLogP(mol)), 3)
@@ -356,9 +315,8 @@ def descriptors(mol):
     return d
 
 
-# --------------------------------------------------------------------------- worker
 def _one(mol, prot_lines, q):
-    """Child-process body: one molecule -> profile dict (or an error string)."""
+    """Child-process body returning one profile dict or an error string."""
     try:
         with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as tf:
             tmp = tf.name
@@ -371,12 +329,9 @@ def _one(mol, prot_lines, q):
 
 
 def analyse_molecule(mol, prot_lines, timeout):
-    """Run one molecule in a child process so that a hang can be killed.
-
-    A single pathological molecule can stall inside C++ code where a Python signal never gets a
-    chance to run, which would otherwise take the whole pocket down with it. OpenBabel, which
-    PLIP calls, carries that risk, so the timeout has to be a process kill rather than a signal.
-    """
+    """Run one molecule in a child process so a hang can be killed. A single pathological
+    molecule can stall inside OpenBabel, which PLIP calls, where a Python signal never gets a
+    chance to run, so the timeout has to be a process kill."""
     q = mp.Queue()
     p = mp.Process(target=_one, args=(mol, prot_lines, q))
     p.start()
@@ -439,10 +394,9 @@ def main():
             if mol is None or mol.GetNumConformers() == 0:
                 n_null += 1                                   # counted, never silently dropped
                 continue
-            # Generated molecules can be chemically invalid. A neutral four-valent nitrogen, for
-            # example, makes RemoveHs raise AtomValenceException. Anything RDKit throws here must
-            # cost one molecule and never the pocket, because an unguarded raise loses every
-            # molecule the task had left to do.
+            # A generated molecule can be chemically invalid, a neutral four-valent nitrogen
+            # making RemoveHs raise AtomValenceException. Anything RDKit throws here must cost
+            # one molecule and never the rest of the pocket.
             try:
                 if any(a.GetAtomicNum() == 1 for a in mol.GetAtoms()):   # some entries carry explicit H
                     mol = Chem.RemoveHs(mol, sanitize=False)

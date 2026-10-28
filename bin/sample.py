@@ -40,8 +40,8 @@ from torch_geometric.transforms import Compose
 from torch_scatter import scatter_mean
 from tqdm.auto import tqdm
 
-# Run from a clone without `pip install -e .`: put the repository root on sys.path so
-# `gated_energy_diffusion` resolves. Harmless when the package IS installed.
+# Puts the repository root on sys.path so gated_energy_diffusion resolves in a clone that was
+# never pip installed. Harmless when the package is installed.
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 
@@ -63,7 +63,7 @@ def sha256_file(path, chunk_size=1 << 20):
 
 
 def unbatch_v_traj(ligand_v_traj, n_data, ligand_cum_atoms):
-    """Unbatch ligand atom type trajectory."""
+    """Split a batched atom-type trajectory into one entry per sample."""
     all_step_v = [[] for _ in range(n_data)]
     if not ligand_v_traj:
         return [np.array([]).reshape(0, 0) for _ in range(n_data)]
@@ -120,19 +120,16 @@ def main():
     logger = misc.get_logger('sampling', log_dir=result_path)
     logger.info(f'Arguments: {args}')
 
-    # Load checkpoint
     logger.info(f'Loading checkpoint: {args.ckpt}')
     ckpt = torch.load(args.ckpt, map_location=args.device)
     ckpt_sha256 = sha256_file(args.ckpt)
     logger.info(f'Checkpoint sha256: {ckpt_sha256}')
 
-    # Get config from checkpoint
     train_config = ckpt['config']
     logger.info(f'Training config: {train_config}')
 
     misc.seed_all(args.seed)
 
-    # Setup transforms
     protein_featurizer = trans.FeaturizeProteinAtom()
     ligand_atom_mode = train_config.data.transform.ligand_atom_mode
     ligand_featurizer = trans.FeaturizeLigandAtom(ligand_atom_mode)
@@ -145,7 +142,7 @@ def main():
     logger.info(f'Protein feature dim: {protein_featurizer.feature_dim}')
     logger.info(f'Ligand feature dim: {ligand_featurizer.feature_dim}')
 
-    # Override data paths if provided (useful when checkpoint was trained with different paths)
+    # Overrides the data paths the checkpoint was trained with.
     if args.data_path is not None:
         train_config.data.path = args.data_path
         logger.info(f'Overriding data path: {args.data_path}')
@@ -153,7 +150,6 @@ def main():
         train_config.data.split = args.split_path
         logger.info(f'Overriding split path: {args.split_path}')
 
-    # Load dataset
     logger.info('Loading dataset...')
     dataset, subsets = get_dataset(
         config=train_config.data,
@@ -168,13 +164,11 @@ def main():
         logger.error(f'data_id {args.data_id} out of range (test set has {len(test_set)} samples)')
         return
 
-    # Get target data
     on_target_data = test_set[args.data_id]
     logger.info(f'data_id: {args.data_id}')
     if hasattr(on_target_data, 'protein_filename'):
         logger.info(f'Protein: {on_target_data.protein_filename}')
 
-    # Build model
     logger.info('Building model...')
     model = ScorePosNet3D(
         train_config.model,
@@ -182,19 +176,16 @@ def main():
         ligand_atom_feature_dim=ligand_featurizer.feature_dim
     ).to(args.device)
 
-    # Load weights
     model.load_state_dict(ckpt['model'])
     model.eval()
     logger.info(f'Model loaded from iteration {ckpt.get("iteration", "unknown")}')
 
-    # Sampling parameters
     num_steps = args.num_steps
     center_pos_mode = getattr(train_config.model, 'center_pos_mode', 'protein')
 
     logger.info(f'Sampling with num_steps={num_steps}, center_pos_mode={center_pos_mode}')
     logger.info(f'Guidance weights: type={args.head1_type_grad_weight}, pos={args.head1_pos_grad_weight}')
 
-    # Run sampling using model's method
     logger.info(f'Generating {args.num_samples} samples...')
 
     all_pred_pos, all_pred_v = [], []
@@ -215,7 +206,6 @@ def main():
 
         t1 = time.time()
 
-        # Memory optimization: Clear cache before processing
         if args.device == 'cuda':
             torch.cuda.empty_cache()
             gc.collect()
@@ -223,7 +213,6 @@ def main():
         with torch.no_grad():
             batch_protein = batch_on.protein_element_batch
 
-            # Determine number of atoms per sample
             if args.sample_num_atoms == 'prior':
                 pocket_size = atom_num.get_space_size(batch_on.protein_pos.detach().cpu().numpy())
                 ligand_num_atoms = [atom_num.sample_atom_num(pocket_size).astype(int) for _ in range(n_data)]
@@ -238,17 +227,14 @@ def main():
                 torch.tensor(ligand_num_atoms, device=args.device)
             )
 
-            # Initialize ligand positions centered on protein
             center_pos_tensor = scatter_mean(batch_on.protein_pos, batch_protein, dim=0)
             batch_center_pos = center_pos_tensor[batch_ligand]
             init_ligand_pos = batch_center_pos + torch.randn_like(batch_center_pos)
 
-            # Initialize ligand atom types (uniform distribution)
             uniform_logits = torch.zeros(len(batch_ligand), model.num_classes, device=args.device)
             init_ligand_v_prob = log_sample_categorical(uniform_logits)
             init_ligand_v = init_ligand_v_prob.argmax(dim=-1)
 
-        # Call model's sampling method
         r = model.sample_diffusion_with_guidance(
             protein_pos=batch_on.protein_pos,
             protein_v=batch_on.protein_atom_feature.float(),
@@ -267,7 +253,6 @@ def main():
         t2 = time.time()
         time_list.append(t2 - t1)
 
-        # Unbatch results
         ligand_cum_atoms = np.cumsum([0] + ligand_num_atoms)
         ligand_pos = r['pos'].detach().cpu().numpy()
         ligand_v = r['v'].detach().cpu().numpy()
@@ -278,7 +263,6 @@ def main():
             all_pred_v.append(ligand_v[ligand_cum_atoms[k]:ligand_cum_atoms[k + 1]])
             all_pred_exp_on.append(exp_on[k].item())
 
-        # Unbatch trajectories
         pos_traj = r['pos_traj']
         v_traj = r['v_traj']
 
@@ -294,16 +278,13 @@ def main():
         all_pred_v_traj += all_step_v
 
         if 'exp_on_traj' in r and len(r['exp_on_traj']) > 0:
-            # Each element in exp_on_traj is [batch_size] tensor at that timestep
             exp_on_traj_batch = torch.stack([t.cpu() for t in r['exp_on_traj']], dim=0)  # [num_steps, batch_size]
             all_pred_exp_on_traj.append(exp_on_traj_batch)
 
-        # Memory cleanup
         del batch_on, r
         if args.device == 'cuda':
             torch.cuda.empty_cache()
 
-    # Unbatch exp trajectories for per-sample saving
     all_exp_on_traj_per_sample = []
     if all_pred_exp_on_traj:
         exp_on_traj_all = torch.cat(all_pred_exp_on_traj, dim=1).numpy()  # [num_steps, total_samples]
@@ -328,7 +309,7 @@ def main():
             'argv': list(sys.argv),
         }, result_file)
 
-    # Save summary (suffix by start_index so an append run does not clobber the first run's summary)
+    # Suffixed by start_index so an append run does not clobber the first run's summary.
     summary_name = 'samples_summary.pkl' if args.start_index == 0 else f'samples_summary_{args.start_index}.pkl'
     summary_file = os.path.join(result_path, summary_name)
     with open(summary_file, 'wb') as f:
@@ -346,7 +327,6 @@ def main():
 
     logger.info(f'Results saved to {result_path}')
 
-    # Print summary
     logger.info('=== Sampling Summary ===')
     logger.info(f'Generated {len(all_pred_pos)} samples')
     logger.info(f'Average time per batch: {np.mean(time_list):.2f}s')
@@ -354,9 +334,7 @@ def main():
     exp_on_array = np.array(all_pred_exp_on)
     logger.info(f'Affinity - mean: {exp_on_array.mean():.4f}, std: {exp_on_array.std():.4f}')
 
-    # ========================================================================
-    # Affinity trajectory per timestep
-    # ========================================================================
+    # Affinity trajectory per timestep.
     if all_pred_exp_on_traj:
         try:
             logger.info('Generating affinity trajectory visualization...')
@@ -365,7 +343,6 @@ def main():
             matplotlib.use('Agg')
             import matplotlib.pyplot as plt
 
-            # [num_steps, num_samples]
             exp_on_traj = torch.cat(all_pred_exp_on_traj, dim=1).numpy()
             num_steps = exp_on_traj.shape[0]
             num_samples = exp_on_traj.shape[1]
@@ -380,7 +357,6 @@ def main():
 
             fig, axes = plt.subplots(1, 2, figsize=(16, 5))
 
-            # ---- Left: per-sample trajectories ----
             ax = axes[0]
             for i in range(max_vis_samples):
                 ax.plot(timesteps, exp_on_traj[:, i], label=f'Sample {i+1}', alpha=0.7, linewidth=2)
@@ -396,7 +372,6 @@ def main():
             ax.set_yticks(yticks)
             ax.set_yticklabels([f'{v:.3f} ({-v*16:.1f})' for v in yticks])
 
-            # ---- Right: mean +/- std over all samples ----
             ax = axes[1]
             mean_on = exp_on_traj.mean(axis=1)
             std_on = exp_on_traj.std(axis=1)

@@ -1,23 +1,11 @@
-"""Export generated molecules from a sampling .pt into per-pocket SDF files.
-
-The .pt layout is the grouped-by-pocket one used across this repo:
-    list[N_pockets] of list[mol_dict], each dict holding at least
-    {'mol': rdkit.Mol (3D), 'smiles': str, 'ligand_filename': '<POCKET>/<rec>_..._lig_....sdf'}
-
-Writes:
-    <out>/sdf/pocket<NNN>.sdf   one multi-model SDF per pocket, mols named p<NNN>_m<MMMM>
-    <out>/manifest.csv          pocket_idx, pocket, receptor, n_mols, ref_ligand
+"""Export generated molecules from a sampling .pt into one multi-model SDF per pocket, plus a
+manifest.
 
 The mol name p<NNN>_m<MMMM> carries the pocket index and the molecule's own index inside that
 pocket's list, so gnina, smina and PoseBusters rows can be joined straight back onto the source
 .pt even though mols that fail to load are skipped. All three tools preserve the SDF title line.
 
-ref_ligand is the crystal ligand for that pocket. The docking modes pass it as the box
-(--autobox_ligand), which is what "redock into the known pocket" means here.
-
-Usage:
-    python scripts/eval_export_sdf.py --pt archive/chiediff_generated_molecules.pt \
-        --out eval_out/mymodel
+ref_ligand is the crystal ligand for that pocket, which the docking modes pass as the box.
 """
 import argparse
 import csv
@@ -31,8 +19,7 @@ RDLogger.DisableLog('rdApp.*')
 
 
 def paths_for(ligand_filename, test_set_root):
-    """'<POCKET>/<pdb>_<ch>_rec_<...>_lig_tt_docked_3.sdf'
-       -> (pocket, '<test_set>/<POCKET>/<pdb>_<ch>_rec.pdb', '<test_set>/<ligand_filename>')"""
+    """Map a ligand_filename to (pocket, receptor pdb, reference ligand sdf)."""
     pocket = os.path.dirname(ligand_filename)
     stem = os.path.basename(ligand_filename).split('_rec')[0] + '_rec.pdb'
     receptor = os.path.join(test_set_root, pocket, stem)
@@ -43,10 +30,10 @@ def paths_for(ligand_filename, test_set_root):
 def _torch_load(path):
     """Load a sampling .pt under either torch generation.
 
-    These files were written in the training environment, whose torch 1.11 `torch.load` has no
-    `weights_only` kwarg. torch 2.6 and later default it to True and then refuse to unpickle the
-    `rdkit.Chem.rdchem.Mol` and `numpy.core.multiarray.scalar` globals inside them, raising
-    UnpicklingError. The new kwarg therefore has to be tried first, never the other way round.
+    torch 2.6 and later default weights_only to True and then refuse to unpickle the
+    rdkit.Chem.rdchem.Mol and numpy.core.multiarray.scalar globals these files contain, while
+    torch 1.11 has no such kwarg. The kwarg therefore has to be tried first, never the other
+    way round.
     """
     try:
         return torch.load(path, map_location='cpu', weights_only=False)
@@ -55,30 +42,19 @@ def _torch_load(path):
 
 
 def load_grouped(path):
-    """Normalise the three .pt layouts this repo reads to list[pocket] of list[mol_dict].
+    """Normalise a grouped, flat or dict-wrapped .pt to list[pocket] of list[mol_dict].
 
-    Sampling sets are not stored uniformly:
-      * grouped     : list[N_pockets] of list[mol]        (what group_samples.py writes)
-      * dict-wrapped: {'all_results': [mol, ...], ...}     a flat list with one entry per
-                      molecule, so it has to be regrouped by ligand_filename
-      * flat        : [mol, ...]                           the same, without the dict wrapper
+    Index i must be the CrossDocked test-set data_id, because every downstream join keys on it.
+    A flat layout therefore goes to its canonical index rather than being renumbered by order of
+    appearance. One model that generated nothing for a single pocket shows the hazard, since
+    renumbering by appearance packs the remainder into 0..91 and shifts 77 of them onto the wrong
+    receptor. Pockets a model has no molecules for stay present as empty slots.
 
-    Pocket order matters. Index i must be the CrossDocked test-set data_id, because every
-    downstream join keys on it, including manifest to receptor, the p<NNN>_m<MMMM> titles and the
-    cross-model per-pocket tables.
-
-    Flat layouts must therefore be placed at their canonical index rather than renumbered by order
-    of appearance. A model that generated nothing for one pocket shows the hazard. Renumbering by
-    appearance packs the remainder into 0..91 and silently shifts 77 of them onto the wrong
-    receptor. Flat sets are aligned through the canonical order instead, and pockets a model has
-    no molecules for stay present as empty slots.
-
-    Alignment keys on the full ligand_filename rather than the pocket directory. The CrossDocked
-    test set lists seven binding sites twice under the same directory with a different reference
-    ligand, for example NOS1 at data_id 53 and 54, so a directory-keyed map would copy one
-    pocket's molecules into both slots and inflate the molecule count. A molecule whose exact
-    ligand_filename is not in the canonical set falls back to the directory, but only when that
-    directory maps to exactly one index.
+    Alignment keys on the full ligand_filename and never on the pocket directory. The CrossDocked
+    test set lists seven binding sites twice under one directory with a different reference
+    ligand, so a directory-keyed map would copy one pocket's molecules into both slots. A molecule
+    whose exact ligand_filename is absent falls back to the directory only when that directory
+    maps to exactly one index.
     """
     obj = _torch_load(path)
     if isinstance(obj, dict):
@@ -128,14 +104,8 @@ def load_grouped(path):
 
 
 def canonical_ligand_files(path='data/test_pocket_order.json'):
-    """The canonical ligand_filename of each test pocket, in pocket order.
-
-    Pocket identity keys on the full ligand filename and never on the pocket directory. Seven
-    CrossDocked sites appear twice in the test split under one directory with different
-    reference ligands, so regrouping by directory silently pairs molecules with the wrong
-    receptor. A .pt of grouped results is also accepted, and the order is read from it the
-    same way.
-    """
+    """The canonical ligand_filename of each test pocket, in pocket order. A .pt of grouped
+    results is also accepted and its order is read the same way."""
     if not os.path.isfile(path):
         return []
     if path.endswith('.json'):
@@ -175,7 +145,7 @@ def main():
             print(f'[WARN] pocket {pi:03d} ({pocket}): receptor missing -> {rec}; skipping pocket')
             continue
         if not os.path.exists(ref):
-            # not fatal: only the docking modes need the box
+            # Not fatal, because only the docking modes need the box.
             print(f'[WARN] pocket {pi:03d} ({pocket}): reference ligand missing -> {ref}; '
                   f'docking modes will skip this pocket')
             ref = ''
@@ -196,10 +166,9 @@ def main():
         rows.append({'pocket_idx': pi, 'pocket': pocket, 'receptor': rec,
                      'n_mols': n, 'ref_ligand': ref})
 
-    # lineterminator='\n' is required. The csv 'excel' dialect defaults to '\r\n', and with
-    # newline='' Python writes that CR literally. Shell callers read manifest.csv with
-    # `IFS=, read`, which would then carry a trailing '\r' into the last field, ref_ligand, and
-    # hand `--autobox_ligand <path>\r` to smina or gnina, naming a file that does not exist.
+    # lineterminator is required, because the csv excel dialect would write a literal CR that
+    # shell callers reading with IFS=, read carry into ref_ligand, naming a file that does not
+    # exist when it reaches smina or gnina.
     with open(os.path.join(args.out, 'manifest.csv'), 'w', newline='') as f:
         wr = csv.DictWriter(f, fieldnames=['pocket_idx', 'pocket', 'receptor', 'n_mols', 'ref_ligand'],
                             lineterminator='\n')

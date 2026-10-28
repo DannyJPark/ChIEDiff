@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Write chain-remapped copies of the test-set receptors, for PoseCheck and ProLIF.
 
-    python scripts/make_chainfix_receptors.py [--test_set data/test_set]
-
 PoseCheck 1.3.1 loads a receptor through Biopython's PDBParser, which keys atoms on
 (chainID, resSeq+iCode, atom name, altLoc) and never reads segID. Twelve CrossDocked test
 receptors carry their chain copies only in segID, so the copies collide and Biopython keeps
@@ -11,12 +9,7 @@ scripts/plip_interactions.remap_chains fixes it by rewriting column 22 from the 
 (chainID, segID) pairs. This applies that function to every receptor.
 
 A receptor with a single (chainID, segID) pair comes back untouched, but every file is still
-rewritten (ATOM/HETATM records + END) so all receptors come from one directory and one code
-path.
-
-Output:
-  <out>/<pocket>/<receptor>.pdb
-  <out>/manifest.json   per receptor: chain pairs, collisions before/after, sha256
+rewritten, so all receptors come from one directory and one code path.
 """
 import argparse
 import hashlib
@@ -32,8 +25,8 @@ import plip_interactions as P                                       # noqa: E402
 
 
 def biopython_key_stats(lines):
-    """(heavy atoms, distinct (chainID, resSeq+iCode, name, altLoc) keys) -- Biopython keeps one
-    atom per key, so keys < heavy atoms means atoms are dropped on load."""
+    """Returns (heavy atoms, distinct Biopython atom keys). Biopython keeps one atom per key, so
+    fewer keys than heavy atoms means atoms are dropped on load."""
     heavy = [l for l in lines if l[76:78].strip().upper() not in ("H", "D")]
     keys = {(l[21], l[22:27], l[12:16], l[16]) for l in heavy}
     return len(heavy), len(keys)
@@ -57,7 +50,7 @@ def main():
             orig = [l.rstrip("\n").ljust(80) for l in fh if l.startswith(("ATOM", "HETATM"))]
         remapped, n_pairs = P.load_receptor(str(src))
         assert len(remapped) == len(orig), rec
-        # remap_chains may only touch column 22
+        # remap_chains may only touch column 22.
         assert all(a[:21] == b[:21] and a[22:] == b[22:] for a, b in zip(orig, remapped)), rec
         h0, k0 = biopython_key_stats(orig)
         h1, k1 = biopython_key_stats(remapped)
@@ -74,10 +67,9 @@ def main():
             "sha256": hashlib.sha256(text.encode()).hexdigest()}
         if h1 != k1:
             bad.append(rec)
-    # Copy the other files each pocket needs, so this directory can be given to the export
-    # step as a whole. The reference ligand is the docking box, and the receptor PDBQT is
-    # what the AutoDock Vina arm reads. The PDBQT is taken unmodified: it carries atom types
-    # and coordinates with no chain semantics, so the chain remapping does not apply to it.
+    # Copy the other files each pocket needs, so this directory can be handed to the export step
+    # as a whole. The PDBQT is taken unmodified, carrying atom types and coordinates with no
+    # chain semantics, so the chain remapping does not apply to it.
     n_aux = 0
     for aux in sorted(list(test_set.glob('*/*.sdf')) + list(test_set.glob('*/*.pdbqt'))):
         dest = OUT / aux.relative_to(test_set)

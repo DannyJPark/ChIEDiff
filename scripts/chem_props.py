@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
-"""Per-molecule chemical properties: QED, SA, LogP, Lipinski, ring sizes.
+"""Per-molecule chemical properties for a model of your own, read from the SDF exports of
+scripts/eval_export_sdf.py and written to <dir>/chem_props.csv.
 
-    python scripts/chem_props.py --dir eval_out/mymodel
+The properties come from the same get_chem the sampler stores under chem_results, but this
+does not reproduce the published property columns exactly, because the sampler computes them
+on the RDKit molecule it reconstructed in memory while this reads the molecule back from an
+SDF. The round trip lets RDKit re-perceive unusual valences and move implicit hydrogens into
+radical electrons. Over one model, three pockets and 282 molecules, ring-size counts agree
+for every molecule while QED, SA and LogP differ for ten of them, 3.5%, one having lost two
+hydrogens to two radical electrons, 520.319 against 518.303 Da. The published values are the
+ones in chem_results, read straight from the .pt.
 
-The properties come from gated_energy_diffusion.utils.evaluation.scoring_func.get_chem, the
-same function whose output the sampler stores under `chem_results` in the .pt files.
-
-This is for measuring a model of your own. It does NOT reproduce the published property
-columns exactly, and the difference is in the input rather than the code: the sampler
-computes `chem_results` on the RDKit molecule it reconstructed in memory, whereas this
-reads the molecule back from an SDF. Writing a molecule with unusual valences to SDF and
-reading it again lets RDKit re-perceive the valence, which moves implicit hydrogens into
-radical electrons. Measured on one model, three pockets, 282 molecules: ring-size counts
-agree for every molecule, and QED, SA and LogP differ for ten of them (3.5%); one such
-molecule lost two hydrogens to two radical electrons, 520.319 -> 518.303 Da. So the
-published values are the ones in `chem_results`, which reproduction.ipynb reads directly
-from the .pt, and these are the ones to use when the SDFs are all you have.
-
-Molecules are read with sanitize=False and sanitized afterwards, one at a time. A molecule
-RDKit cannot sanitize gets a row with empty properties and `status` saying so, rather than
-disappearing: sanitization fails on distorted geometry, which is not independent of the
-models being compared, so dropping those molecules would bias every column that follows.
-
-Input:  <dir>/sdf/pocket<NNN>.sdf, from scripts/eval_export_sdf.py
-Output: <dir>/chem_props.csv
+A molecule RDKit cannot sanitize keeps its row, with empty properties and a status saying so,
+rather than disappearing. Sanitization fails on distorted geometry, which is not independent
+of the models being compared, so dropping those molecules would bias every column.
 """
 import argparse
 import csv

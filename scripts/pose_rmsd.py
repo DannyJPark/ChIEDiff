@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
-"""Generated-pose -> engine-pose RMSD for every engine, one row per molecule.
-
-    python scripts/pose_rmsd.py --dir eval_out/mymodel [--jobs 8]
+"""Generated-pose to engine-pose RMSD for every engine, one row per molecule.
 
     rmsd_gen_min_*   how far local minimisation moves the pose, which measures whether the
-                     pose already sits at a local minimum, independent of the box and of
-                     the global search
+                     pose already sits at a local minimum, independent of the box and of the
+                     global search
     rmsd_gen_dock_*  how far a full re-search moves it, which depends on the box
 
-RMSD is the non-superposed, symmetry-minimised heavy-atom RMSD (rmsd_core). Superposing
+RMSD is the non-superposed, symmetry-minimised heavy-atom RMSD of rmsd_core. Superposing
 answers a different question and always flatters the model.
 
-Atom correspondence is recorded per row. smina and gnina take SDF in and give SDF out, but
-round-trip through PDBQT internally, so heavy-atom order is not preserved and bond orders
-are sometimes re-perceived, which makes an exact graph match impossible.
-`rmsd_core.rmsd_best_effort` tries exact CalcRMS first and falls back to skeleton
-isomorphism, with the bond-count gate that keeps it a true isomorphism. Which path was used
-goes into `method_*`, because the fallback can only bias RMSD downward and that bias has to
-be measurable rather than assumed.
-
-Input:  <dir>/sdf/pocket<NNN>.sdf plus the engine outputs beside them
-Output: <dir>/pose_rmsd.csv
+Atom correspondence is recorded per row. smina and gnina take SDF in and give SDF out but
+round-trip through PDBQT internally, so heavy-atom order is not preserved and bond orders are
+sometimes re-perceived, which makes an exact graph match impossible. rmsd_best_effort tries
+exact CalcRMS first and falls back to skeleton isomorphism, with the bond-count gate that keeps
+it a true isomorphism. Which path was used goes into method_*, because the fallback can only
+bias RMSD downward and that bias has to be measurable rather than assumed.
 """
 import argparse
 import collections
@@ -39,7 +33,7 @@ from rmsd_core import compare                                   # noqa: E402
 
 RDLogger.DisableLog('rdApp.*')
 
-# engine -> (subdir, filename suffix) for each mode we may have run
+# (engine, mode, subdirectory, filename suffix) for each mode that may have been run.
 SOURCES = [
     ('smina',   'min',  'smina',        '_min.sdf'),
     ('smina',   'dock', 'smina',        '_dock.sdf'),
@@ -51,10 +45,9 @@ SOURCES = [
 
 
 def load_named(*paths):
-    """-> {name: mol}, first occurrence wins across all paths. sanitize=False so a bad pose is
-    flagged rather than lost. Several paths are accepted because a pocket can be docked in more
-    than one pass, each writing its own file. Passes are disjoint by molecule name, so they merge
-    into one full-coverage set."""
+    """Read SDF records into {name: mol}, first occurrence winning. Sanitization is off so a
+    bad pose is flagged rather than lost. Several paths are accepted because a pocket can be
+    docked in more than one pass, and the passes are disjoint by molecule name."""
     out = {}
     for path in paths:
         if not (os.path.isfile(path) and os.path.getsize(path) > 0):
@@ -74,10 +67,9 @@ def one_pocket(task):
         return []
     engines = {}
     for eng, mode, sub, suf in SOURCES:
-        # Glob every pass rather than naming them, so a pocket docked in several passes is
-        # covered in full. A molecule that no pass reached would otherwise stay in the
-        # reporting denominator with no engine pose. Passes are disjoint by molecule name and
-        # load_named keeps the first occurrence, so the union over them is safe.
+        # Every pass is globbed rather than named, so a pocket docked in several passes is
+        # covered in full. A molecule that no pass reached stays in the reporting denominator
+        # with no engine pose.
         stem = os.path.join(model_dir, sub, f'pocket{tag}{suf[:-4]}')
         paths = [stem + '.sdf'] + sorted(p for p in glob.glob(stem + '_*.sdf'))
         engines[(eng, mode)] = load_named(*paths)

@@ -1,24 +1,14 @@
 #!/usr/bin/env python3
-"""PoseBusters intermolecular-distance checks per generated molecule, keeping the clash COUNT.
+"""PoseBusters intermolecular-distance checks per generated molecule, keeping the clash count.
 
-    PY=$(conda info --base)/envs/posebusters/bin/python
-    $PY scripts/eval_pb_distance.py --dir eval_out/mymodel
-    $PY scripts/eval_pb_distance.py --dir eval_out/mymodel --pockets 0 1 2
+PoseBusters' own check_intermolecular_distance runs once per intermolecular_distance module of
+the config, with that module's parameters read from the yml. A clash is a heavy-atom pair with
+d < clash_cutoff * (r_i + r_j), using RDKit vdW radii for the protein, organic-cofactor and
+water checks and covalent radii for inorganic cofactors, hydrogens ignored on both sides.
+PoseBusters' own CSVs keep only each module's boolean, and this keeps num_pairwise_clashes too.
 
-What runs is PoseBusters' own
-posebusters.modules.intermolecular_distance.check_intermolecular_distance, once per
-"Distance to ..." module of the config, with that module's parameters read from the yml. A
-clash is a heavy-atom pair with d < clash_cutoff * (r_i + r_j) (RDKit vdW radii for the
-protein, organic-cofactor and water checks, covalent radii for inorganic cofactors;
-hydrogens ignored on both sides). PoseBusters' own CSVs keep only each module's boolean;
-this keeps num_pairwise_clashes as well.
-
-Receptor: posebusters.tools.loading.safe_load_mol with the yml's mol_cond loading options
-(RDKit's PDB reader keeps every atom, including the segID-coded chain copies Biopython
-drops). Ligand: the exported pose, record by record, sanitize=False / removeHs=False.
-
-Input:  <dir>/manifest.csv and <dir>/sdf/pocket<NNN>.sdf, from scripts/eval_export_sdf.py
-Output: <dir>/pb_distance/pocket<NNN>.csv
+The receptor is loaded through safe_load_mol with the yml's mol_cond options, so RDKit's PDB
+reader keeps every atom, including the segID-coded chain copies Biopython drops.
 """
 import argparse
 import csv

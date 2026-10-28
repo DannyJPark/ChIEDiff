@@ -105,11 +105,9 @@ def get_index(atom_num, hybridization, is_aromatic, mode):
     if mode == 'basic':
         return MAP_ATOM_TYPE_ONLY_TO_INDEX[int(atom_num)]
     elif mode == 'add_aromatic':
-        # self.atomic_numbers = torch.LongTensor([1, 6, 7, 8, 9, 15, 16, 17])  # H, C, N, O, F, P, S, Cl
         if (int(atom_num), bool(is_aromatic)) in MAP_ATOM_TYPE_AROMATIC_TO_INDEX:
             return MAP_ATOM_TYPE_AROMATIC_TO_INDEX[int(atom_num), bool(is_aromatic)]
         else:
-            # print(int(atom_num), bool(is_aromatic))
             return MAP_ATOM_TYPE_AROMATIC_TO_INDEX[(1, False)]
     else:
         return MAP_ATOM_TYPE_FULL_TO_INDEX[(int(atom_num), str(hybridization), bool(is_aromatic))]

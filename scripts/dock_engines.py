@@ -1,29 +1,21 @@
 #!/usr/bin/env python3
 """Re-dock and re-minimise the generated poses with smina, Vinardo and gnina.
 
-    python scripts/dock_engines.py --dir eval_out/mymodel --engine smina  --mode dock
-    python scripts/dock_engines.py --dir eval_out/mymodel --engine vinardo --mode min
-    python scripts/dock_engines.py --dir eval_out/mymodel --engine gnina  --mode dock --pockets 0 1
-
 The mode decides the search and the engine decides the scoring function, and the two stay
-orthogonal so that smina-Vina against smina-Vinardo is a single-variable swap: the same
-binary, the same search, the same box and the same seed.
+orthogonal, so smina-Vina against smina-Vinardo is a single-variable swap with the same binary,
+the same search, the same box and the same seed. Dock mode boxes on the reference ligand, and
+min mode relaxes in place and takes no box.
 
-    dock   --autobox_ligand <reference ligand> --exhaustiveness 8 --num_modes 1 --seed 42
-    min    --minimize, which relaxes in place and takes no box
-
-`vinardo` is smina with --scoring vinardo. gnina adds CNN rescoring and reports the CNN-ranked
+vinardo is smina with --scoring vinardo. gnina adds CNN rescoring and reports the CNN-ranked
 pose, which is why its dock and min arms are not interchangeable with smina's.
 
-The AutoDock Vina arm is not here: scripts/vina_meeko_dock.py runs score_only, minimize and
-dock in one pass with an exact meeko atom map, and writes its own output.
+The AutoDock Vina arm lives in scripts/vina_meeko_dock.py, which runs score_only, minimize and
+dock in one pass with an exact meeko atom map and writes its own output.
 
 One CPU per invocation by default, because smina's --cpu parallelises over exhaustiveness runs
 and scales sublinearly, so running several pockets at once beats giving one pocket more cores.
 
-Input:  <dir>/manifest.csv and <dir>/sdf/pocket<NNN>.sdf, from scripts/eval_export_sdf.py
-Output: <dir>/{smina,smina_vinardo,gnina}/pocket<NNN>_{dock,min}.sdf
-        which is the layout scripts/pose_rmsd.py reads.
+The output layout is the one scripts/pose_rmsd.py reads.
 """
 import argparse
 import csv
@@ -35,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# engine -> (binary env var, output subdirectory, extra scoring arguments)
+# Values are (binary env var, output subdirectory, extra scoring arguments).
 ENGINES = {
     'smina':   ('SMINA', 'smina',         []),
     'vinardo': ('SMINA', 'smina_vinardo', ['--scoring', 'vinardo']),
@@ -58,9 +50,8 @@ def binary_for(engine, override=None):
 def resolve(path):
     """Accept a path relative to the current directory or to the repository root.
 
-    Returns None for an empty field or a path that exists in neither place, so one bad
-    pocket is skipped rather than ending the run. An empty field would otherwise become
-    Path('.'), which exists, and the engine would be handed a directory as its box.
+    An empty field returns None rather than Path('.'), which exists and would hand the engine a
+    directory as its box. An unresolvable path skips one pocket rather than ending the run.
     """
     path = (path or '').strip()
     if not path:
@@ -92,9 +83,8 @@ def run_pocket(base, row, engine, mode, binary, cpus, exhaustiveness, seed, time
 
     want = count_records(sdf)
     have = count_records(out)
-    # An engine legitimately returns fewer poses than it was given, because a molecule it
-    # cannot parse is dropped. So a non-empty output counts as done. Delete the file to
-    # force a re-run.
+    # An engine legitimately returns fewer poses than it was given, because a molecule it cannot
+    # parse is dropped, so any non-empty output counts as done. Delete the file to force a re-run.
     if have > 0:
         print(f'pocket{tag} {engine} {mode}: {have} poses already present '
               f'(from {want} inputs)', flush=True)
@@ -108,8 +98,7 @@ def run_pocket(base, row, engine, mode, binary, cpus, exhaustiveness, seed, time
     if mode == 'dock':
         ref = resolve(row.get('ref_ligand', ''))
         if ref is None:
-            # The export writes an empty ref_ligand when the crystal ligand is missing, and
-            # dock mode has no box without it.
+            # The export writes an empty ref_ligand when the crystal ligand is missing.
             print(f'pocket{tag} {engine} dock: no reference ligand for the box, skipping',
                   flush=True)
             return None
@@ -121,8 +110,8 @@ def run_pocket(base, row, engine, mode, binary, cpus, exhaustiveness, seed, time
 
     cmd = [binary, '-r', str(receptor), '-l', str(sdf)] + scoring + modeargs
     cmd += ['--cpu', str(cpus)]
-    # The scratch file must keep the .sdf extension: smina and gnina pick the output format
-    # from it and exit 255 on anything else, writing nothing.
+    # The scratch file must keep the .sdf extension, because smina and gnina pick the output
+    # format from it and exit 255 on anything else, writing nothing.
     tmp = outdir / f'.pocket{tag}_{mode}.partial.{os.getpid()}.sdf'
     cmd += ['-o', str(tmp)]
     try:

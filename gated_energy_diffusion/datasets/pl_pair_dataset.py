@@ -14,8 +14,8 @@ import logging
 from gated_energy_diffusion.utils.data import PDBProtein, parse_sdf_file
 from gated_energy_diffusion.datasets.pl_data import ProteinLigandData, torchify_dict
 # CrossDocked2020's own types index, read only when an LMDB record lacks a cached affinity.
-# scripts/data_preparation/clean_crossdocked.py defines the same constant. It is repeated
-# here so that the package does not import from the scripts directory.
+# scripts/data_preparation/clean_crossdocked.py defines the same constant, repeated here so
+# the package does not import from the scripts directory.
 TYPES_FILENAME = 'types/it2_tt_v1.1_completeset_train0.types'
 
 
@@ -25,12 +25,9 @@ class PocketLigandPairDataset(Dataset):
         super().__init__()
         self.raw_path = raw_path.rstrip('/')
 
-        # Check if raw_path is already a processed LMDB file
         if self.raw_path.endswith('.lmdb') and os.path.exists(self.raw_path):
-            # Use the provided LMDB directly
             self.processed_path = self.raw_path
         else:
-            # Generate processed path from raw path
             self.index_path = os.path.join(self.raw_path, 'index.pkl')
             self.processed_path = os.path.join(os.path.dirname(self.raw_path),
                                                os.path.basename(self.raw_path) + f'_processed_{version}.lmdb')
@@ -65,7 +62,6 @@ class PocketLigandPairDataset(Dataset):
                         'pk': float(pk),
                         'vina': float(vina[1:])
                     }
-            # save affinity info
             with open(self.affinity_path, 'wb') as f:
                 pickle.dump(affinity_info, f)
         
@@ -91,14 +87,12 @@ class PocketLigandPairDataset(Dataset):
         with self.db.begin() as txn:
             self.keys = list(txn.cursor().iternext(values=False))
 
-        # Build filename to key mapping for tuple-based indexing (with caching)
+        # Maps a filename pair to its LMDB key, cached on disk.
         cache_path = self.processed_path + '_filename_mapping.pkl'
         if os.path.exists(cache_path):
-            # Load cached mapping
             with open(cache_path, 'rb') as f:
                 self._filename_to_key = pickle.load(f)
         else:
-            # Build mapping and cache it
             self._filename_to_key = {}
             with self.db.begin() as txn:
                 for key in tqdm(self.keys, desc='Building filename mapping'):
@@ -109,7 +103,6 @@ class PocketLigandPairDataset(Dataset):
                             self._filename_to_key[filename_tuple] = key
                     except:
                         continue
-            # Save to cache
             with open(cache_path, 'wb') as f:
                 pickle.dump(self._filename_to_key, f)
 
@@ -196,9 +189,7 @@ class PocketLigandPairDataset(Dataset):
         if self.db is None:
             self._connect_db()
 
-        # Handle case where idx is a tuple of (protein_filename, ligand_filename)
         if isinstance(idx, tuple) and len(idx) == 2 and isinstance(idx[0], str):
-            # This is a filename tuple from split file
             if idx in self._filename_to_key:
                 key = self._filename_to_key[idx]
                 original_idx = self.keys.index(key) if key in self.keys else 0
@@ -209,12 +200,9 @@ class PocketLigandPairDataset(Dataset):
                     f"{idx[0]} is in the split but not in the LMDB at {self.processed_path}. "
                     f"The split indexes one exact build of the database, so a rebuilt or "
                     f"partial LMDB silently shifts every pocket. See data/README.md.")
-        # Handle case where idx is a tuple (extract first element)
         elif isinstance(idx, tuple):
             idx = idx[0]
-            # Recursively handle the extracted element
             return self.get_ori_data(idx)
-        # Handle case where idx is a string - try to convert to int first
         elif isinstance(idx, str):
             try:
                 # A decimal string is an index, so resolve it through the integer branch.
@@ -223,11 +211,9 @@ class PocketLigandPairDataset(Dataset):
                 # Anything else is an LMDB key.
                 key = idx.encode()
                 original_idx = self.keys.index(key) if key in self.keys else 0
-        # Handle case where idx is bytes (direct key)
         elif isinstance(idx, bytes):
             key = idx
             original_idx = self.keys.index(key) if key in self.keys else 0
-        # Handle case where idx is an integer
         elif isinstance(idx, int):
             if idx >= len(self.keys):
                 raise IndexError(f"Index {idx} is out of range for dataset with {len(self.keys)} samples")

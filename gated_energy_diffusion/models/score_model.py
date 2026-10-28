@@ -1,10 +1,9 @@
 """Score network for pocket-conditioned 3D molecule diffusion with an affinity head.
 
-The denoiser refines ligand coordinates and atom types inside a fixed protein pocket.
-The ligand atom embeddings of the protein-ligand complex graph feed two outputs: the
-atom-type inference used for generation, and a per-atom affinity head pooled over each
-ligand. The affinity head supplies the sampling-time guidance gradients, and the
-chemistry-gated intermolecular interaction energy is added to the training loss.
+The ligand atom embeddings of the protein-ligand complex graph feed two outputs, the atom-type
+inference used for generation and a per-atom affinity head pooled over each ligand. The affinity
+head supplies the sampling-time guidance gradients, and the chemistry-gated intermolecular
+interaction energy is added to the training loss.
 """
 
 import numpy as np
@@ -110,7 +109,6 @@ def center_pos(protein_pos, ligand_pos, batch_protein, batch_ligand, mode='prote
     return protein_pos, ligand_pos, offset
 
 
-# Categorical diffusion utilities
 def index_to_log_onehot(x, num_classes):
     assert x.max().item() < num_classes, f'Error: {x.max().item()} >= {num_classes}'
     x_onehot = F.one_hot(x, num_classes)
@@ -157,7 +155,6 @@ def log_add_exp(a, b):
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
 
 
-# Time embedding
 class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -176,16 +173,14 @@ class SinusoidalPosEmb(nn.Module):
 class ScorePosNet3D(nn.Module):
     """Diffusion score network with a single binding-affinity head.
 
-    The protein-ligand complex graph is refined by the equivariant transformer. The ligand
-    atom embeddings are read out by `v_inference` for the atom types and by
-    `expert_pred_head1` for a per-atom affinity that is pooled with scatter_mean over each
-    ligand.
+    The complex graph is refined by the equivariant transformer, then v_inference reads out the
+    atom types and expert_pred_head1 a per-atom affinity pooled over each ligand.
     """
 
     def __init__(self, config, protein_atom_feature_dim, ligand_atom_feature_dim):
         super().__init__()
-        # Config guards are raises rather than asserts, because `python -O` strips asserts and
-        # each of these keys would otherwise build a model that does not match the config.
+        # These guards raise rather than assert, because python -O strips asserts and each of
+        # these keys would otherwise build a model that does not match the config.
         _mode = getattr(config, 'vdw_loss_mode', 'vina')
         if _mode != 'vina':
             raise ValueError(
@@ -212,26 +207,18 @@ class ScorePosNet3D(nn.Module):
         self.sample_time_method = config.sample_time_method # ['importance', 'symmetric']
         self.use_classifier_guide = config.use_classifier_guide
 
-        # === Chemistry-gated intermolecular interaction energy ===
-        # The raw energy is computed in get_diffusion_loss. The base weight and the curriculum
-        # ramp (it / vdw_ramp_iters) are applied in the train loop.
-        # The hydrophobic and H-bond terms are gated by atom type, following AutoDock Vina's own
-        # rule. The steric terms (gauss1/gauss2/repulsion) stay ungated. False applies both
-        # gated terms to every pair, which is a different energy and is rejected above.
+        # Chemistry-gated interaction energy. The raw energy is computed in get_diffusion_loss,
+        # and its base weight and curriculum ramp are applied in the train loop. The hydrophobic
+        # and H-bond terms are gated by atom type following Vina's own rule, while the steric
+        # terms stay ungated.
         self.vina_type_gating = getattr(config, 'vina_type_gating', True)
-        # Per-term ablation switches. They scale the three term groups before the weighted sum,
-        # so a group set to 0.0 is removed exactly, its energy being identically zero rather
-        # than merely small.
-        #   steric -> gauss1 + gauss2 + repulsion (the two Gaussians and the quadratic)
-        #   hydro  -> hydrophobic
-        #   hbond  -> hbonding
-        # 1.0 everywhere is the unmodified five-term Vina energy, so these keys are a no-op for
-        # a config that does not set them.
+        # These scale the steric, hydrophobic and hbond term groups before the weighted sum, so a
+        # group set to 0.0 is removed exactly, its energy being identically zero rather than
+        # merely small.
         self.vina_steric_scale = float(getattr(config, 'vina_steric_scale', 1.0))
         self.vina_hydro_scale = float(getattr(config, 'vina_hydro_scale', 1.0))
         self.vina_hbond_scale = float(getattr(config, 'vina_hbond_scale', 1.0))
 
-        # Beta schedule
         if config.beta_schedule == 'cosine':
             alphas = cosine_beta_schedule(config.num_diffusion_timesteps, config.pos_beta_s) ** 2
             print('cosine pos alpha schedule applied!')
@@ -252,21 +239,19 @@ class ScorePosNet3D(nn.Module):
         self.num_timesteps = self.betas.size(0)
         self.alphas_cumprod = to_torch_const(alphas_cumprod)
         self.alphas_cumprod_prev = to_torch_const(alphas_cumprod_prev)
-        # calculations for diffusion q(x_t | x_{t-1}) and others
         self.sqrt_alphas_cumprod = to_torch_const(np.sqrt(alphas_cumprod))
         self.sqrt_one_minus_alphas_cumprod = to_torch_const(np.sqrt(1. - alphas_cumprod))
         self.sqrt_recip_alphas_cumprod = to_torch_const(np.sqrt(1. / alphas_cumprod))
         self.sqrt_recipm1_alphas_cumprod = to_torch_const(np.sqrt(1. / alphas_cumprod - 1))
 
-        # Computed tensor (will be moved to device when sqrt_* tensors are moved)
-        self._pos_classifier_grad_weight = None  # Lazy initialization
+        self._pos_classifier_grad_weight = None
 
-         # calculations for posterior q(x_{t-1} | x_t, x_0)
+         # posterior q(x_{t-1} | x_t, x_0)
         posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
         self.posterior_mean_c0_coef = to_torch_const(betas * np.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod))
         self.posterior_mean_ct_coef = to_torch_const(
             (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod))
-        # log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
+        # The log is clipped, because the posterior variance is 0 at the start of the chain.
         self.posterior_var = to_torch_const(posterior_variance)
         self.posterior_logvar = to_torch_const(np.log(np.append(self.posterior_var[1], self.posterior_var[1:])))
 
@@ -295,13 +280,10 @@ class ScorePosNet3D(nn.Module):
         else:
             emb_dim = self.hidden_dim
 
-        # Atom embeddings
         self.protein_atom_emb = nn.Linear(protein_atom_feature_dim, emb_dim)
 
-        # center pos
         self.center_pos_mode = config.center_pos_mode # ['none', 'protein']
 
-        # Time embedding
         self.time_emb_dim = config.time_emb_dim
         self.time_emb_mode = config.time_emb_mode # ['simple', 'sin']
         if self.time_emb_dim > 0:
@@ -320,18 +302,16 @@ class ScorePosNet3D(nn.Module):
         else:
             self.ligand_atom_emb = nn.Linear(ligand_atom_feature_dim, emb_dim)
 
-        # RefineNet
         self.refine_net_type = config.model_type
         self.refine_net = get_refine_net(self.refine_net_type, config)
 
-        # Ligand type inference (for generation)
         self.v_inference = nn.Sequential(
             nn.Linear(self.hidden_dim, self.hidden_dim),
             ShiftedSoftplus(),
             nn.Linear(self.hidden_dim, ligand_atom_feature_dim),
         )
 
-        # Affinity head: per ligand atom (Input: hidden_dim, Output: 1), pooled by scatter_mean
+        # Scores one ligand atom at a time. forward() pools it over each ligand.
         self.expert_pred_head1 = nn.Sequential(
             nn.Linear(self.hidden_dim, self.hidden_dim),
             ShiftedSoftplus(),
@@ -339,12 +319,11 @@ class ScorePosNet3D(nn.Module):
             nn.Sigmoid()
         )
 
-        # Interaction energy: build vdW-radius table + index->Z LUTs (needs num_classes)
         self._init_vina_tables()
 
     @property
     def pos_classifier_grad_weight(self):
-        """Compute grad weight on the same device as model parameters."""
+        """Rebuilt whenever the schedule buffers move to another device."""
         if self._pos_classifier_grad_weight is None or \
            self._pos_classifier_grad_weight.device != self.sqrt_one_minus_alphas_cumprod.device:
             self._pos_classifier_grad_weight = (
@@ -354,15 +333,12 @@ class ScorePosNet3D(nn.Module):
 
     def forward(self, protein_pos, protein_v, batch_protein, init_ligand_pos, init_ligand_v, batch_ligand,
                 time_step=None, return_all=False, fix_x=False):
-        """
-        Forward pass: refine the complex graph, then read out atom types and affinity.
-        """
+        """Refine the complex graph, then read out atom types and affinity."""
         batch_size = batch_protein.max().item() + 1
 
         if len(init_ligand_v.shape) == 1:
             init_ligand_v = F.one_hot(init_ligand_v, self.num_classes).float()
 
-        # Time embedding
         if self.time_emb_dim > 0:
             if self.time_emb_mode == 'simple':
                 input_ligand_feat = torch.cat([
@@ -384,7 +360,6 @@ class ScorePosNet3D(nn.Module):
             h_protein = torch.cat([h_protein, torch.zeros(len(h_protein), 1).to(h_protein)], -1)
             init_ligand_h = torch.cat([init_ligand_h, torch.ones(len(init_ligand_h), 1).to(h_protein)], -1)
 
-        # Compose protein-ligand complex graph
         h_all, pos_all, batch_all, mask_ligand, mask_protein = compose_context(
             h_protein=h_protein,
             h_ligand=init_ligand_h,
@@ -394,15 +369,13 @@ class ScorePosNet3D(nn.Module):
             batch_ligand=batch_ligand,
         )
 
-        # RefineNet forward
         outputs = self.refine_net(h_all, pos_all, mask_ligand, batch_all, return_all=return_all, fix_x=fix_x)
         final_pos, final_h = outputs['x'], outputs['h']
         final_ligand_pos, final_ligand_h = final_pos[mask_ligand], final_h[mask_ligand]
         final_ligand_v = self.v_inference(final_ligand_h)
 
-        # Affinity prediction: per ligand atom, then mean-pooled over each ligand
-        atom_affinity = self.expert_pred_head1(final_ligand_h).squeeze(-1)  # (N_ligand,)
-        final_exp_pred = scatter_mean(atom_affinity, batch_ligand)  # (batch_size,)
+        atom_affinity = self.expert_pred_head1(final_ligand_h).squeeze(-1)
+        final_exp_pred = scatter_mean(atom_affinity, batch_ligand)
 
         preds = {
             'pred_ligand_pos': final_ligand_pos,
@@ -427,8 +400,6 @@ class ScorePosNet3D(nn.Module):
             })
         return preds
 
-    # === Diffusion methods ===
-    # Compute q(vt | v0 )
     def q_v_pred_one_timestep(self, log_vt_1, t, batch):
         log_alpha_t = extract(self.log_alphas_v, t, batch)
         log_1_min_alpha_t = extract(self.log_one_minus_alphas_v, t, batch)
@@ -455,11 +426,10 @@ class ScorePosNet3D(nn.Module):
         log_sample = index_to_log_onehot(sample_index, self.num_classes)
         return sample_index, log_sample
 
-    # atom type generative process
     def q_v_posterior(self, log_v0, log_vt, t, batch):
         # q(vt-1 | vt, v0) = q(vt | vt-1, v0) * q(vt-1 | v0) / q(vt | v0)
         t_minus_1 = t - 1
-        # Remove negative values, will not be used anyway for final decoder
+        # The clamped entries are never read by the final decoder.
         t_minus_1 = torch.where(t_minus_1 < 0, torch.zeros_like(t_minus_1), t_minus_1)
         log_qvt1_v0 = self.q_v_pred(log_v0, t_minus_1, batch)
         unnormed_logprobs = log_qvt1_v0 + self.q_v_pred_one_timestep(log_vt, t, batch)
@@ -480,7 +450,6 @@ class ScorePosNet3D(nn.Module):
         return pos0_from_e
 
     def q_pos_posterior(self, x0, xt, t, batch):
-        # Compute the mean and variance of the diffusion posterior q(x_{t-1} | x_t, x_0)
         pos_model_mean = extract(self.posterior_mean_c0_coef, t, batch) * x0 + \
                          extract(self.posterior_mean_ct_coef, t, batch) * xt
         return pos_model_mean
@@ -497,7 +466,6 @@ class ScorePosNet3D(nn.Module):
             time_step = torch.multinomial(pt_all, num_samples=num_graphs, replacement=True)
             pt = pt_all.gather(dim=0, index=time_step)
             return time_step, pt
-        # Uniform Time Sampling
         elif method == 'symmetric':
             time_step = torch.randint(0, self.num_timesteps, size=(num_graphs // 2 + 1,), device=device)
             time_step = torch.cat([time_step, self.num_timesteps - time_step - 1], dim=0)[:num_graphs]
@@ -507,7 +475,6 @@ class ScorePosNet3D(nn.Module):
             raise ValueError
 
     def compute_pos_Lt(self, pos_model_mean, x0, xt, t, batch):
-        # fixed pos variance
         pos_log_variance = extract(self.posterior_logvar, t, batch)
         pos_true_mean = self.q_pos_posterior(x0=x0, xt=xt, t=t, batch=batch)
         kl_pos = normal_kl(pos_true_mean, pos_log_variance, pos_model_mean, pos_log_variance)
@@ -525,9 +492,9 @@ class ScorePosNet3D(nn.Module):
         loss_v = scatter_mean(mask * decoder_nll_v + (1. - mask) * kl_v, batch, dim=0)
         return loss_v
 
-    # Constant lookup tables that some checkpoints carry inside their state_dict, holding Bondi
-    # radii and element-level gating tables that this code no longer builds. They are dropped on
-    # load so that __init__ rebuilds the tables it needs.
+    # Some checkpoints carry these constant tables inside their state_dict, holding Bondi radii
+    # and element-level gating tables that this code does not build. They are dropped on load so
+    # that __init__ rebuilds the tables it needs.
     _LEGACY_CONST_BUFFERS = ('_vina_radii', '_vina_ligand_Z', '_vina_protein_Z',
                              '_vina_is_hbond', '_vina_is_hydro')
 
@@ -537,16 +504,13 @@ class ScorePosNet3D(nn.Module):
         return super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     def _init_vina_tables(self):
-        """Build an atomic-number-indexed vdW-radius table + ligand/protein index->Z LUTs for the
-        interaction energy.
+        """Build the radius table and the ligand and protein index-to-Z lookups.
 
-        Radii are AutoDock Vina's `xs_radius` (src/lib/atom_constants.h, giving C 1.9, N 1.8,
-        O 1.7, S 2.0, P 2.1, F 1.5, Cl 1.8, Br 2.0, I 2.2), not Bondi radii. Every Vina term is
-        a function of the surface distance d = r - (R_i + R_j), so the radii set where the
-        Gaussians and the H-bond and hydrophobic ramps sit. With Vina's radii an N...O pair has
-        R_i + R_j = 3.5 A, putting the H-bond ramp (active for d in [-0.7, 0]) at r in
-        [2.8, 3.5] A, which is the real H-bond range."""
-        from gated_energy_diffusion.utils import transforms as _t  # lazy import: avoids circular import at module load
+        Radii are Vina's xs_radius, not Bondi radii, and every Vina term is a function of the
+        surface distance d = r - (R_i + R_j), so the radii set where the Gaussians and the H-bond
+        and hydrophobic ramps sit. See gated_energy_diffusion/utils/vina_types.py.
+        """
+        from gated_energy_diffusion.utils import transforms as _t  # imported late to break a cycle
         from gated_energy_diffusion.utils.vina_rules import VINA_WEIGHT
         from gated_energy_diffusion.utils.vina_types import XS_RADIUS_BY_Z, XS_RADIUS_DEFAULT
 
@@ -554,9 +518,8 @@ class ScorePosNet3D(nn.Module):
         radii = torch.full((ZMAX,), XS_RADIUS_DEFAULT)
         for z, r in XS_RADIUS_BY_Z.items():
             radii[z] = r
-        # persistent=False because these are constants, not learned state. Keeping them out of
-        # the state_dict means a checkpoint carrying older radii cannot restore them over the
-        # table built here (see _load_from_state_dict above).
+        # persistent=False keeps these constants out of the state_dict, so a checkpoint carrying
+        # older radii cannot restore them over the table built here.
         self.register_buffer('_vina_radii', radii, persistent=False)
 
         nc = self.num_classes
@@ -571,10 +534,9 @@ class ScorePosNet3D(nn.Module):
         self.register_buffer('_vina_ligand_Z', torch.tensor(lut, dtype=torch.long), persistent=False)
         # protein element one-hot order in protein_v[:, :6] (FeaturizeProteinAtom): H,C,N,O,S,Se
         self.register_buffer('_vina_protein_Z', torch.tensor([1, 6, 7, 8, 16, 34], dtype=torch.long), persistent=False)
-        # Per-term ablation scale, aligned with VINA_WEIGHT's term order
-        # [gauss1, gauss2, repulsion, hydrophobic, hbonding]. persistent=False keeps it out of
-        # the state_dict, so a checkpoint that does not contain it still loads, and an ablation
-        # checkpoint does not carry its scales into a different config.
+        # Aligned with VINA_WEIGHT's term order. persistent=False keeps it out of the state_dict,
+        # so a checkpoint without it still loads and an ablation checkpoint does not carry its
+        # scales into a different config.
         self.register_buffer('_vina_term_scale', torch.tensor(
             [self.vina_steric_scale, self.vina_steric_scale, self.vina_steric_scale,
              self.vina_hydro_scale, self.vina_hbond_scale], dtype=torch.float32), persistent=False)
@@ -589,30 +551,24 @@ class ScorePosNet3D(nn.Module):
 
     def _compute_vina_energy(self, pred_ligand_pos, protein_pos, batch_ligand, batch_protein,
                              num_graphs, ligand_v, protein_v, ligand_xs=None, protein_xs=None):
-        """AutoDock Vina empirical interaction energy, reusing vina_rules.py's terms and weights
-        with their published signs and magnitudes, so VINA_WEIGHT = [gauss1 -0.0356,
-        gauss2 -0.00516, repulsion +0.840, hydrophobic -0.0351, hbonding -0.587], evaluated on
-        the surface distance d = r - (R_i + R_j) with Vina's xs_radius.
+        """AutoDock Vina empirical interaction energy, reusing vina_rules.py's five terms and
+        weights with their published signs and magnitudes, evaluated on the surface distance
+        d = r - (R_i + R_j) with Vina's xs_radius.
 
-        The energy itself is minimized with a single backward pass, rather than a sum of forces
-        (sum dE/dd) that would need a double backward. The per-pair energy is bounded below at
-        about -0.66, so the objective is well-posed, and the piecewise-linear hydrophobic and
-        hbonding terms still contribute gradient through their nonzero first derivative. Lower
-        values are more Vina-favorable poses, and repulsion carries a positive weight so it
-        penalizes clashes.
+        The energy itself is minimized with a single backward pass rather than a sum of forces,
+        which would need a double backward. The per-pair energy is bounded below at about -0.66,
+        so the objective is well posed, and the piecewise-linear hydrophobic and hbonding terms
+        still contribute gradient through their nonzero first derivative. Lower is more
+        Vina-favorable, and repulsion carries a positive weight so it penalizes clashes.
 
-        Type gating (self.vina_type_gating) reproduces Vina's own rules from the per-atom XS
-        flags `ligand_xs` and `protein_xs`, each (N, 3) holding
-        [is_hydrophobic, is_donor, is_acceptor] as supplied by transforms.FeaturizeVinaAtomTypes
-        (see gated_energy_diffusion/utils/vina_types.py):
+        Type gating reproduces Vina's own rules from the per-atom XS flags ligand_xs and
+        protein_xs, each (N, 3) holding [is_hydrophobic, is_donor, is_acceptor] as supplied by
+        transforms.FeaturizeVinaAtomTypes. Hydrophobic fires only when both atoms are
+        hydrophobic, and an H-bond only on a donor-acceptor pair, never acceptor-acceptor or
+        donor-donor. The steric terms apply to every pair, under an 8 A cutoff.
 
-            hydrophobic fires iff xs_is_hydrophobic(t1) && xs_is_hydrophobic(t2)
-                -> a carbon with no heteroatom neighbour, or F/Cl/Br/I
-            h-bond fires iff xs_h_bond_possible(t1, t2)
-                -> (donor(t1) && acceptor(t2)) || (donor(t2) && acceptor(t1))   [never A-A or D-D]
-
-        The steric gauss1/gauss2/repulsion terms apply to every pair, under an 8 A cutoff.
-        Returns a scalar, summed over ligand-protein pairs and averaged over graphs."""
+        Returns a scalar, summed over ligand-protein pairs and averaged over graphs.
+        """
         assert ligand_v is not None and protein_v is not None, \
             "the gated interaction energy requires ligand_v and protein_v"
         assert ligand_xs is not None and protein_xs is not None, (
@@ -621,14 +577,14 @@ class ScorePosNet3D(nn.Module):
         from gated_energy_diffusion.utils.vina_rules import (
             VINA_WEIGHT, gauss1, gauss2, repulsion, hydrophobic, hbonding)
         w = torch.tensor(VINA_WEIGHT, device=pred_ligand_pos.device, dtype=pred_ligand_pos.dtype)
-        # Per-term ablation: zero out whole term groups. The energy is linear in these scales, so
-        # E(steric only) + E(hydro only) + E(hbond only) == E(full) exactly.
+        # The energy is linear in these scales, so E(steric) + E(hydro) + E(hbond) == E(full)
+        # exactly and a group set to zero is removed rather than shrunk.
         w = w * self._vina_term_scale.to(device=w.device, dtype=w.dtype)
 
         lig_idx = ligand_v.argmax(-1) if ligand_v.dim() > 1 else ligand_v
-        lig_Z = self._vina_ligand_Z[lig_idx.long()]                                       # (N_lig,)
-        pro_Z = self._vina_protein_Z[protein_v[:, :6].argmax(-1).long()]                  # (N_pro,)
-        lig_r_all, pro_r_all = self._vina_radii[lig_Z], self._vina_radii[pro_Z]           # Vina xs_radius
+        lig_Z = self._vina_ligand_Z[lig_idx.long()]
+        pro_Z = self._vina_protein_Z[protein_v[:, :6].argmax(-1).long()]
+        lig_r_all, pro_r_all = self._vina_radii[lig_Z], self._vina_radii[pro_Z]
 
         lig_hy, lig_do, lig_ac = ligand_xs.bool().unbind(-1)
         pro_hy, pro_do, pro_ac = protein_xs.bool().unbind(-1)
@@ -639,63 +595,49 @@ class ScorePosNet3D(nn.Module):
             lig, pro = pred_ligand_pos[lm], protein_pos[pm]
             if lig.shape[0] == 0 or pro.shape[0] == 0:
                 continue
-            # manual sqrt with +1e-10 -> finite gradient as the pair distance goes to 0
-            r = torch.sqrt(((lig.unsqueeze(1) - pro.unsqueeze(0)) ** 2).sum(-1) + 1e-10)  # (L,P) interatomic
+            # The sqrt is written out with +1e-10 to keep the gradient finite as r goes to 0.
+            r = torch.sqrt(((lig.unsqueeze(1) - pro.unsqueeze(0)) ** 2).sum(-1) + 1e-10)
             d = r - (lig_r_all[lm].unsqueeze(1) + pro_r_all[pm].unsqueeze(0))             # surface distance
             hydro_t, hbond_t = hydrophobic(d), hbonding(d)
             if self.vina_type_gating:
-                # Gates and radii come from the reference chemistry, namely the XS flags and
-                # ligand_v as given by the data, which is what Vina uses. They are therefore
-                # batch constants, so this energy backpropagates into the predicted coordinates
-                # only and sends no gradient into the atom-type head.
+                # The gates and radii come from the XS flags and ligand_v as given by the data,
+                # so they are batch constants. This energy therefore backpropagates into the
+                # predicted coordinates only and sends no gradient into the atom-type head.
                 m_hy = lig_hy[lm].unsqueeze(1) & pro_hy[pm].unsqueeze(0)
                 m_hb = (lig_do[lm].unsqueeze(1) & pro_ac[pm].unsqueeze(0)) | \
                        (lig_ac[lm].unsqueeze(1) & pro_do[pm].unsqueeze(0))    # xs_h_bond_possible
                 hydro_t = hydro_t * m_hy.to(d.dtype)
                 hbond_t = hbond_t * m_hb.to(d.dtype)
-            terms = torch.stack([gauss1(d), gauss2(d), repulsion(d), hydro_t, hbond_t], dim=0)  # (5, L, P)
-            e = (terms * w[:, None, None]).sum(0)                                         # (L, P) weighted Vina energy
+            terms = torch.stack([gauss1(d), gauss2(d), repulsion(d), hydro_t, hbond_t], dim=0)
+            e = (terms * w[:, None, None]).sum(0)
             total = total + (e * (r < 8.0).to(e.dtype)).sum()                             # Vina 8 A cutoff
         return total / max(num_graphs, 1)
 
     def compute_vdw_loss(self, pred_ligand_pos, protein_pos, batch_ligand, batch_protein, num_graphs,
                          ligand_v=None, protein_v=None, ligand_xs=None, protein_xs=None):
-        """
-        Physics-informed interaction energy between the predicted ligand atom positions (x0) and
-        the fixed protein atoms. All five AutoDock Vina terms (gauss1, gauss2, repulsion,
-        hydrophobic, hbonding) are evaluated on the surface distance d = r - (R_i + R_j),
-        weighted by VINA_WEIGHT with its published signs and magnitudes, and minimized directly
-        as an energy with a single backward pass. The objective is bounded below and every term
-        contributes gradient. Requires ligand_v and protein_v, plus ligand_xs and protein_xs for
-        Vina's donor-acceptor and hydrophobic type gating (see _compute_vina_energy). Returns a
-        scalar, summed over all ligand-protein pairs and averaged over graphs in the batch.
-        """
+        """Interaction energy between the predicted ligand positions and the fixed protein
+        atoms. See _compute_vina_energy."""
         return self._compute_vina_energy(
             pred_ligand_pos, protein_pos, batch_ligand, batch_protein, num_graphs, ligand_v, protein_v,
             ligand_xs=ligand_xs, protein_xs=protein_xs)
 
     def get_diffusion_loss(self, protein_pos, protein_v, affinity, batch_protein, ligand_pos, ligand_v, batch_ligand,
                            time_step=None, ligand_xs=None, protein_xs=None):
-        """
-        Diffusion training loss: coordinate + atom-type reconstruction, the affinity MSE, and the
-        gated interaction energy (returned raw as 'loss_vdw'; its weight and curriculum ramp are
-        applied in the train loop).
-
-        ligand_xs / protein_xs: (N, 3) bool Vina XS flags [hydrophobic, donor, acceptor] from
-        transforms.FeaturizeVinaAtomTypes, required by the gated interaction energy.
+        """Coordinate and atom-type reconstruction, the affinity MSE, and the gated interaction
+        energy. The energy is returned raw as loss_vdw, its weight and curriculum ramp being
+        applied in the train loop. ligand_xs and protein_xs are the Vina XS flags from
+        transforms.FeaturizeVinaAtomTypes, which the gated energy requires.
         """
         num_graphs = batch_protein.max().item() + 1
         protein_pos, ligand_pos, _ = center_pos(
             protein_pos, ligand_pos, batch_protein, batch_ligand, mode=self.center_pos_mode)
 
-        # Sample noise levels
         if time_step is None:
             time_step, pt = self.sample_time(num_graphs, protein_pos.device, self.sample_time_method)
         else:
             pt = torch.ones_like(time_step).float() / self.num_timesteps
         a = self.alphas_cumprod.index_select(0, time_step)
 
-        # Perturb pos and v
         a_pos = a[batch_ligand].unsqueeze(-1)
         pos_noise = torch.zeros_like(ligand_pos)
         pos_noise.normal_()
@@ -704,7 +646,6 @@ class ScorePosNet3D(nn.Module):
         log_ligand_v0 = index_to_log_onehot(ligand_v, self.num_classes)
         ligand_v_perturbed, log_ligand_vt = self.q_v_sample(log_ligand_v0, time_step, batch_ligand)
 
-         # 3. forward-pass NN, feed perturbed pos and v, output noise
         preds = self(
             protein_pos=protein_pos,
             protein_v=protein_v,
@@ -718,7 +659,6 @@ class ScorePosNet3D(nn.Module):
         pred_ligand_pos, pred_ligand_v = preds['pred_ligand_pos'], preds['pred_ligand_v']
         pred_pos_noise = pred_ligand_pos - ligand_pos_perturbed
 
-        # Atom Position loss
         if self.model_mean_type == 'C0':
             target, pred = ligand_pos, pred_ligand_pos
         elif self.model_mean_type == 'noise':
@@ -728,7 +668,6 @@ class ScorePosNet3D(nn.Module):
         loss_pos = scatter_mean(((pred - target) ** 2).sum(-1), batch_ligand, dim=0)
         loss_pos = torch.mean(loss_pos)
 
-        # Atom type loss
         log_ligand_v_recon = F.log_softmax(pred_ligand_v, dim=-1)
         log_v_model_prob = self.q_v_posterior(log_ligand_v_recon, log_ligand_vt, time_step, batch_ligand)
         log_v_true_prob = self.q_v_posterior(log_ligand_v0, log_ligand_vt, time_step, batch_ligand)
@@ -736,7 +675,6 @@ class ScorePosNet3D(nn.Module):
                                  log_v_true_prob=log_v_true_prob, t=time_step, batch=batch_ligand)
         loss_v = torch.mean(kl_v)
 
-        # Affinity loss
         loss_exp = F.mse_loss(preds['final_exp_pred'], affinity)
 
         if self.use_classifier_guide:
@@ -744,7 +682,7 @@ class ScorePosNet3D(nn.Module):
         else:
             loss = loss_pos + loss_v * self.loss_v_weight
 
-        # Interaction energy (raw energy; weight + curriculum ramp applied in train loop)
+        # Raw energy. Its weight and curriculum ramp are applied in the train loop.
         loss_vdw = self.compute_vdw_loss(pred_ligand_pos, protein_pos, batch_ligand, batch_protein, num_graphs,
                                          ligand_v=ligand_v, protein_v=protein_v,
                                          ligand_xs=ligand_xs, protein_xs=protein_xs)
@@ -768,9 +706,7 @@ class ScorePosNet3D(nn.Module):
     def sample_diffusion(self, protein_pos, protein_v, batch_protein,
                          init_ligand_pos, init_ligand_v, batch_ligand,
                          num_steps=None, center_pos_mode=None):
-        """
-        Sample from the diffusion model, without affinity guidance.
-        """
+        """Sample from the diffusion model, without affinity guidance."""
         if num_steps is None:
             num_steps = self.num_timesteps
         num_graphs = batch_protein.max().item() + 1
@@ -795,7 +731,6 @@ class ScorePosNet3D(nn.Module):
                 time_step=t
             )
 
-            # Compute posterior
             if self.model_mean_type == 'noise':
                 pred_pos_noise = preds['pred_ligand_pos'] - ligand_pos
                 pos0_from_e = self._predict_x0_from_eps(xt=ligand_pos, eps=pred_pos_noise, t=t, batch=batch_ligand)
@@ -844,25 +779,11 @@ class ScorePosNet3D(nn.Module):
         head1_type_grad_weight=0., head1_pos_grad_weight=0.,
         w_on=1.0
     ):
-        """
-        Sample from the diffusion model with affinity guidance from the single head.
+        """Sample from the diffusion model with affinity guidance from the single head.
 
-        Args:
-            protein_pos: Target protein positions
-            protein_v: Target protein features
-            batch_protein: Protein batch indices
-            init_ligand_pos: Initial ligand positions (noise)
-            init_ligand_v: Initial ligand atom types
-            batch_ligand: Ligand batch indices
-            num_steps: Number of diffusion steps
-            center_pos_mode: Position centering mode
-            guide_mode: 'head1_only' (the only mode implemented here)
-            head1_type_grad_weight: atom-type guidance strength s_v
-            head1_pos_grad_weight: coordinate guidance strength s_x
-            w_on: scale applied to both guidance channels
-
-        Returns:
-            Dictionary with sampled ligands and trajectories
+        head1_type_grad_weight is the atom-type guidance strength s_v, head1_pos_grad_weight the
+        coordinate guidance strength s_x, and w_on scales both channels. head1_only is the only
+        guide_mode implemented here.
         """
         import gc
 
@@ -871,7 +792,6 @@ class ScorePosNet3D(nn.Module):
         num_graphs = batch_protein.max().item() + 1
         device = protein_pos.device
 
-        # Center protein
         protein_pos_on, init_ligand_pos, offset = center_pos(
             protein_pos, init_ligand_pos, batch_protein, batch_ligand, mode=center_pos_mode)
 
@@ -885,7 +805,6 @@ class ScorePosNet3D(nn.Module):
             t = torch.full(size=(num_graphs,), fill_value=i, dtype=torch.long, device=device)
 
             if guide_mode == 'head1_only':
-                # Compute guidance with standard forward
                 if head1_type_grad_weight > 0 or head1_pos_grad_weight > 0:
                     with torch.enable_grad():
                         ligand_pos_h1 = ligand_pos.detach().requires_grad_(True)
@@ -902,13 +821,12 @@ class ScorePosNet3D(nn.Module):
                         )
                         exp_on = preds['final_exp_pred']
 
-                        # Compute log(affinity) for position gradient
                         exp_on_log = exp_on.log()
 
-                        # Two separate backward calls. A single tuple-backward over both inputs
-                        # traverses the graph in a different order and lands about 1e-7 away in
-                        # float, which the 1000-step stochastic sampler amplifies into a visibly
-                        # different molecule.
+                        # The two backward calls stay separate. A single tuple-backward over
+                        # both inputs traverses the graph in a different order and lands about
+                        # 1e-7 away in float, which the 1000-step stochastic sampler amplifies
+                        # into a visibly different molecule.
                         # The two channels are asymmetric. The atom-type gradient is grad A_hat
                         # and the position gradient is grad log A_hat.
                         head1_v_grad = torch.autograd.grad(
@@ -947,9 +865,8 @@ class ScorePosNet3D(nn.Module):
             else:
                 raise ValueError(f"guide_mode must be 'head1_only', got {guide_mode!r}")
 
-            # === Compute posterior (always with no_grad) ===
+            # The posterior is always built under no_grad.
             with torch.no_grad():
-                # Get denoising prediction
                 preds = self(
                     protein_pos=protein_pos_on,
                     protein_v=protein_v,
@@ -970,46 +887,38 @@ class ScorePosNet3D(nn.Module):
                 else:
                     raise ValueError
 
-                # Compute posterior
                 pos_model_mean = self.q_pos_posterior(x0=pos0_from_e, xt=ligand_pos, t=t, batch=batch_ligand)
                 pos_log_variance = extract(self.posterior_logvar, t, batch_ligand)
 
-                # type posterior
                 log_ligand_v_recon = F.log_softmax(v0_from_e, dim=-1)
                 log_ligand_v = index_to_log_onehot(ligand_v, self.num_classes)
 
-                # Apply guidance. The type score is added to the log-onehot before
-                # q_v_posterior, and it is not centred over classes.
+                # The type score is added to the log-onehot before q_v_posterior, and it is
+                # not centred over classes.
                 pos_model_mean_h1 = pos_model_mean + w_on * head1_pos_grad_weight * (0.5 * pos_log_variance).exp() * head1_pos_grad
                 log_ligand_v_h1 = log_ligand_v + w_on * head1_type_grad_weight * head1_v_grad
 
-                # no noise when t == 0
                 nonzero_mask = (1 - (t == 0).float())[batch_ligand].unsqueeze(-1)
 
-                # Sample next step
                 ligand_pos_next = pos_model_mean_h1 + nonzero_mask * (0.5 * pos_log_variance).exp() * torch.randn_like(ligand_pos)
-                ligand_pos = ligand_pos_next.detach()  # Break computation graph
+                ligand_pos = ligand_pos_next.detach()
 
                 log_model_prob = self.q_v_posterior(log_ligand_v_recon, log_ligand_v_h1, t, batch_ligand)
 
                 ligand_v_next = log_sample_categorical(log_model_prob).argmax(dim=-1)
-                ligand_v = ligand_v_next.detach()  # Break computation graph
+                ligand_v = ligand_v_next.detach()
 
-                # Store trajectory
                 ori_ligand_pos = ligand_pos + offset[batch_ligand]
                 pos_traj.append(ori_ligand_pos.clone().cpu())
                 v_traj.append(ligand_v.clone().cpu())
                 exp_on_traj.append(exp_on.detach().clone().cpu())
 
-            # Clean up iteration variables
             del preds, head1_pos_grad, head1_v_grad
 
-            # Clear CUDA cache periodically
             if iter_idx % 50 == 0 and device.type == 'cuda':
                 torch.cuda.empty_cache()
                 gc.collect()
 
-        # Final positions with offset
         ligand_pos = ligand_pos + offset[batch_ligand]
 
         return {

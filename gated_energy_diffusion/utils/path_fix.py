@@ -1,25 +1,11 @@
-"""
-Utility function to fix data paths in checkpoint configs.
-Normalizes any training-time paths to ./data/ for portability.
-"""
+"""Rewrite the dataset paths stored in a checkpoint config to ./data/ so a checkpoint trained
+on another machine still loads."""
 
 import os
 
 
 def fix_checkpoint_data_paths(ckpt, logger=None):
-    """
-    Fix data paths in checkpoint config to use ./data/ location.
-
-    Handles checkpoints that were trained with various path prefixes
-    (e.g., ./scratch2/data/, absolute paths) and normalizes them.
-
-    Args:
-        ckpt: Checkpoint dictionary containing 'config'
-        logger: Optional logger for info messages
-
-    Returns:
-        Modified checkpoint (modifies in-place and returns)
-    """
+    """Normalize config.data.path and config.data.split in place and return the checkpoint."""
     if not hasattr(ckpt, 'get'):
         return ckpt
 
@@ -32,30 +18,24 @@ def fix_checkpoint_data_paths(ckpt, logger=None):
         return ckpt
 
     def normalize_path(p):
-        """Normalize a data path to ./data/..."""
         if p is None:
             return p
-        # Checkpoints store the dataset path they were trained with, which need not exist on
-        # the machine that loads them. These prefixes are remapped onto ./data/ so a checkpoint
-        # trained elsewhere still loads. Ordered longest-first, so a lustre or scratch2 path is
-        # matched before the bare ./data/ entry.
+        # Ordered longest first, so a lustre or scratch2 path is matched before the bare
+        # ./data/ entry.
         for prefix in ['./lustre/data/', 'lustre/data/',
                        './scratch2/data/', 'scratch2/data/', './data/']:
             if prefix in p:
                 return './data/' + p.split(prefix)[-1]
-        # Absolute paths containing known patterns
         if '/data/' in p:
             return './data/' + p.split('/data/')[-1]
         return p
 
-    # Fix data.path
     if hasattr(config.data, 'path'):
         old_path = config.data.path
         config.data.path = normalize_path(old_path)
         if config.data.path != old_path and logger:
             logger.info(f"Updated data path: {old_path} -> {config.data.path}")
 
-    # Fix data.split
     if hasattr(config.data, 'split'):
         old_split = config.data.split
         config.data.split = normalize_path(old_split)

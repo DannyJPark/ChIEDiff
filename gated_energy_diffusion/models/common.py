@@ -9,13 +9,12 @@ class GaussianSmearing(nn.Module):
         self.start = start
         self.stop = stop
         self.num_gaussians = num_gaussians
-        # Non-uniform offsets rather than a uniform linspace over [start, stop]: the centres
-        # are dense between 1 and 3 A, where the interaction terms vary fastest, and sparse
-        # out to 10 A. Two consequences, both inherited and both load-bearing for the released
-        # weights, so neither is changed here. The buffer has 20 centres whatever
-        # num_gaussians says, and that argument is reported by __repr__ but never read. And
-        # the width comes from the first gap, 1 A, while most gaps are 0.25 A, so the
-        # basis functions overlap heavily in the dense region.
+        # The offsets are non-uniform rather than a linspace over [start, stop], dense between
+        # 1 and 3 A where the interaction terms vary fastest and sparse out to 10 A. Two
+        # consequences are load-bearing for the released weights and must not be changed. The
+        # buffer has 20 centres whatever num_gaussians says, that argument being reported by
+        # __repr__ but never read, and the width comes from the first gap of 1 A while most
+        # gaps are 0.25 A, so the basis functions overlap heavily in the dense region.
         offset = torch.tensor([0, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5, 4, 4.5, 5, 5.5, 6, 7, 8, 9, 10])
         self.coeff = -0.5 / (offset[1] - offset[0]).item() ** 2
         self.register_buffer('offset', offset)
@@ -78,14 +77,11 @@ class MLP(nn.Module):
         return self.net(x)
 
 def outer_product(*vectors):
-    # Check for empty tensors
     for vector in vectors:
         if vector.numel() == 0:
-            # Return empty tensor with appropriate shape for empty input
             if len(vectors) == 1:
                 return vector
             else:
-                # For multiple vectors, return empty tensor with product dimensions
                 device = vector.device
                 dtype = vector.dtype
                 return torch.empty((0,), device=device, dtype=dtype)
@@ -129,13 +125,11 @@ def compose_context(h_protein, h_ligand, pos_protein, pos_ligand, batch_protein,
     # which breaks runs that hold the ligand atom types fixed.
     sort_idx = torch.sort(batch_ctx, stable=True).indices
 
-    # mask_ligand: True for ligand atoms, False for protein atoms
     mask_ligand = torch.cat([
         torch.zeros([batch_protein.size(0)], device=batch_protein.device).bool(),
         torch.ones([batch_ligand.size(0)], device=batch_ligand.device).bool(),
     ], dim=0)[sort_idx]
 
-    # mask_protein: True for protein atoms, False for ligand atoms
     mask_protein = ~mask_ligand
 
     batch_ctx = batch_ctx[sort_idx]
@@ -153,14 +147,12 @@ class ShiftedSoftplus(nn.Module):
         return F.softplus(x) - self.shift
 
 def hybrid_edge_connection(ligand_pos, protein_pos, k, ligand_index, protein_index):
-    # fully-connected for ligand atoms
     dst = torch.repeat_interleave(ligand_index, len(ligand_index))
     src = ligand_index.repeat(len(ligand_index))
     mask = dst != src
     dst, src = dst[mask], src[mask]
     ll_edge_index = torch.stack([src, dst])
 
-    # knn for ligand-protein edges
     ligand_protein_pos_dist = torch.unsqueeze(ligand_pos, 1) - torch.unsqueeze(protein_pos, 0)
     ligand_protein_pos_dist = torch.norm(ligand_protein_pos_dist, p=2, dim=-1)
     knn_p_idx = torch.topk(ligand_protein_pos_dist, k=k, largest=False, dim=1).indices
@@ -195,7 +187,6 @@ def batch_hybrid_edge_connection(x, k, mask_ligand, batch, add_p_index=False):
                 p_edge_index = torch.stack([all_index[p_src], all_index[p_dst]], 0)
                 batch_p_edge_index.append(p_edge_index)
 
-    # Combine all edges
     if add_p_index:
         edge_index = [torch.cat([ll, pl, p], -1) for ll, pl, p in zip(
             batch_ll_edge_index, batch_pl_edge_index, batch_p_edge_index)]

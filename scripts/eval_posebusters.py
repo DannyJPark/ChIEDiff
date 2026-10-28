@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
-"""PoseBusters physical-validity checks, one process per molecule.
+"""PoseBusters physical-validity checks, run with the posebusters environment's own bust
+executable, one process per molecule.
 
-    PY=$(conda info --base)/envs/posebusters/bin/python
-    $PY scripts/eval_posebusters.py --dir eval_out/mymodel [--workers 8]
-    $PY scripts/eval_posebusters.py --dir eval_out/mymodel --pockets 0 1 2
-
-Each molecule is written to its own SDF and passed to `bust` in dock mode under a timeout.
 The unit is one molecule rather than one pocket because the internal-energy check runs an
-ETKDG ensemble, and a single pathological molecule can take hundreds of seconds. With a
-whole pocket per process that molecule stalls the other hundred; with one molecule per
-process a pocket's wall time is its slowest molecule rather than the sum of them.
+ETKDG ensemble and a single pathological molecule can take hundreds of seconds. Per molecule,
+a pocket's wall time is its slowest molecule rather than the sum of them.
 
-The config is posebusters' own dock.yml with num_threads: 1 in the energy module, so the
-work parallelises across molecules instead of oversubscribing the machine inside one. ETKDG
-is seeded (randomSeed=42), so the thread count does not change what the check returns.
+The config is posebusters' own dock.yml with num_threads set to 1 in the energy module, so the
+work parallelises across molecules instead of oversubscribing the machine inside one. ETKDG is
+seeded (randomSeed=42), so the thread count does not change what the check returns.
 
-A molecule that times out or exits non-zero gets a row whose checks are empty and whose
-`error` column says why. Those rows are kept: the failure rate is itself a property of the
-model's output, and dropping them would make the cohort depend on the quantity measured.
+A molecule that times out or exits non-zero gets a row whose checks are empty and whose error
+column says why. Those rows are kept, because the failure rate is itself a property of the
+model's output and dropping them would make the cohort depend on the quantity measured.
 
-Input:  <dir>/manifest.csv and <dir>/sdf/pocket<NNN>.sdf, from scripts/eval_export_sdf.py
-Output: <dir>/posebusters/pocket<NNN>.csv   (one row per molecule; existing files are kept)
+Existing per-pocket CSVs are kept rather than recomputed.
 """
 import argparse
 import csv
@@ -39,9 +33,9 @@ OUT_SUB = 'posebusters'
 
 
 def resolve(path):
-    """manifest.csv stores receptor paths relative to wherever the export ran, so accept
-    both the current directory and the repository root. Returns None if neither exists, so
-    one unreadable pocket does not abandon the rest."""
+    """manifest.csv stores receptor paths relative to wherever the export ran, so both the
+    current directory and the repository root are accepted. None means neither exists, so one
+    unreadable pocket does not abandon the rest."""
     p = Path(path.strip())
     for cand in (p, ROOT / p):
         if cand.exists():
@@ -50,7 +44,7 @@ def resolve(path):
 
 
 def one_molecule(args):
-    """-> (name, {column: value}) for a single molecule, never raising."""
+    """Run bust on one molecule and return a row rather than raising."""
     key, sdf_path, receptor, bust, config, timeout = args
     _, name = key
     cmd = ['timeout', str(timeout), bust, sdf_path, '-p', receptor,
@@ -79,11 +73,9 @@ def one_molecule(args):
 
 
 def molecules_of(sdf):
-    """(name, single-molecule SDF text) per record, read as text so nothing is re-perceived.
-
-    A record is kept even when the file ends without a $$$$ terminator, because dropping it
-    would leave a molecule out of the CSV with nothing to show that it was ever there.
-    """
+    """Split an SDF into one record per molecule, as text, so nothing is re-perceived. A record
+    is kept even when the file ends without a terminator, because dropping it would leave a
+    molecule out of the CSV with nothing to show that it was ever there."""
     out, block, idx = [], [], 0
     for line in open(sdf):
         block.append(line)
@@ -126,8 +118,8 @@ def evaluate(base, bust, config, workers, timeout, pockets=None):
         try:
             tasks = []
             for i, (name, text) in enumerate(mols):
-                # Index the scratch file rather than naming it after the molecule: an SDF
-                # title may contain a slash or repeat, which would respectively fail to open
+                # The scratch file is indexed rather than named after the molecule, because an
+                # SDF title may contain a slash or repeat, which would respectively fail to open
                 # and silently overwrite another molecule's input.
                 path = os.path.join(work, f'{i:05d}.sdf')
                 with open(path, 'w') as fh:
@@ -140,8 +132,8 @@ def evaluate(base, bust, config, workers, timeout, pockets=None):
             shutil.rmtree(work, ignore_errors=True)
 
         rows = [results[(i, name)] for i, (name, _) in enumerate(mols)]
-        # Collect the check columns over every row, because a row that failed carries only
-        # molecule/error/seconds. Sorting them keeps the header identical across pockets
+        # The check columns are collected over every row, because a failed row carries only
+        # molecule, error and seconds. Sorting them keeps the header identical across pockets
         # whatever order the rows happen to be in.
         checks = sorted({k for rec in rows for k in rec
                          if k not in ('molecule', 'error', 'seconds')})

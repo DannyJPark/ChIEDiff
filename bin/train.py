@@ -29,8 +29,8 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import Compose
 from tqdm.auto import tqdm
 
-# Run from a clone without `pip install -e .`: put the repository root on sys.path so
-# `gated_energy_diffusion` resolves. Harmless when the package IS installed.
+# Puts the repository root on sys.path so gated_energy_diffusion resolves in a clone that was
+# never pip installed. Harmless when the package is installed.
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 
@@ -88,7 +88,7 @@ def main():
                              'all restart. For continuing an interrupted run use --resume instead.')
     parser.add_argument('--tag', type=str, default='')
     parser.add_argument('--train_report_iter', type=int, default=200)
-    # Resume options (used by the chained training launcher to survive the wall-time cap)
+    # Used by the chained training launcher to survive the wall-time cap.
     parser.add_argument('--resume', type=str, default='',
                         help='Continue an interrupted run: restores model + optimizer + scheduler + '
                              'iteration counter and keeps writing into the SAME log dir. Accepts either '
@@ -98,7 +98,6 @@ def main():
                         help='Write a rolling checkpoints/last.pt every N iterations regardless of '
                              'validation loss, so a job killed at wall-time resumes from where it died '
                              'rather than from the last best. 0 (default) means use train.val_freq.')
-    # Wandb options
     parser.add_argument('--wandb', action='store_true', help='Enable wandb logging')
     parser.add_argument('--wandb_project', type=str, default='gated_energy_diffusion',
                         help='Wandb project name')
@@ -114,11 +113,9 @@ def main():
         raise SystemExit('--resume and --ckpt are mutually exclusive: --resume continues a run, '
                          '--ckpt starts a new one from borrowed weights.')
 
-    # Load checkpoint or config.
     # A checkpoint carries the data root it was trained under, which need not exist on this
-    # machine, so normalize it to ./data/ before the config is used
-    # (gated_energy_diffusion/utils/path_fix.py). The run logger does not exist yet at this
-    # point, hence the print-backed stand-in.
+    # machine, so path_fix normalizes it to ./data/ before the config is used. The run logger
+    # does not exist yet, hence the print-backed stand-in.
     boot_logger = SimpleNamespace(info=print)
     ckpt = None
     resume_ckpt_path = ''
@@ -148,15 +145,15 @@ def main():
         config = misc.load_config(args.config)
 
     config_name = os.path.basename(args.config)[:os.path.basename(args.config).rfind('.')]
-    # Iteration to continue from. Offset the seed by it on resume: the training iterator is rebuilt
-    # from scratch on every launch, so reusing the bare seed would replay the exact batch sequence
-    # the run already consumed before it was killed.
+    # The seed is offset by the resume iteration, because the training iterator is rebuilt from
+    # scratch on every launch and the bare seed would replay the batch sequence the run already
+    # consumed before it was killed.
     start_it = int(ckpt['iteration']) + 1 if (args.resume and ckpt.get('iteration') is not None) else 0
     misc.seed_all(config.train.seed + start_it)
 
-    # Logging. A resumed run keeps writing into its original directory, so a chained multi-day
-    # training leaves ONE run dir with one continuous log/tensorboard/checkpoint history instead of
-    # a fresh timestamped directory per chain link.
+    # A resumed run keeps writing into its original directory, so a chained multi-day training
+    # leaves one run directory with one continuous log, tensorboard and checkpoint history
+    # instead of a fresh timestamped directory per chain link.
     log_dir = resume_log_dir if args.resume else misc.get_new_log_dir(args.logdir, prefix=config_name, tag=args.tag)
     ckpt_dir = os.path.join(log_dir, 'checkpoints')
     os.makedirs(ckpt_dir, exist_ok=True)
@@ -168,13 +165,12 @@ def main():
     logger.info(args)
     logger.info(config)
 
-    # Only snapshot config/model source when the run is first created — on resume these already
-    # exist, and copytree onto an existing directory would abort the job.
+    # The config and model source are snapshotted only when the run is first created, because
+    # copytree onto an existing directory would abort a resumed job.
     if not args.resume:
         shutil.copyfile(args.config, os.path.join(log_dir, os.path.basename(args.config)))
         shutil.copytree(os.path.dirname(models_pkg.__file__), os.path.join(log_dir, 'models'))
 
-    # Initialize wandb
     use_wandb = args.wandb and WANDB_AVAILABLE
     if args.wandb and not WANDB_AVAILABLE:
         logger.warning('wandb not installed. Install with: pip install wandb')
@@ -195,7 +191,6 @@ def main():
         )
         logger.info(f'Wandb initialized: {wandb.run.url}')
 
-    # Transforms
     protein_featurizer = trans.FeaturizeProteinAtom()
     ligand_featurizer = trans.FeaturizeLigandAtom(config.data.transform.ligand_atom_mode)
     transform_list = [
@@ -204,18 +199,15 @@ def main():
         trans.FeaturizeLigandBond(),
         trans.NormalizeVina(config.data.name)
     ]
-    # The gated energy loss gates its hydrophobic and H-bond terms by real atom typing, so
-    # H-bonds need a donor-acceptor pair and hydrophobic contacts need hydrophobic carbons. That
-    # needs the per-atom XS flags built from the reference topology
-    # (gated_energy_diffusion/utils/vina_types.py). Added unconditionally, because the shipped
-    # configuration always uses the gated energy.
+    # The gated energy needs the per-atom XS flags built from the reference topology, because an
+    # H-bond requires a donor-acceptor pair and a hydrophobic contact requires hydrophobic
+    # carbons. Added unconditionally, because the shipped configuration always uses that energy.
     transform_list.append(trans.FeaturizeVinaAtomTypes())
 
     if config.data.transform.random_rot:
         transform_list.append(trans.RandomRotation())
     transform = Compose(transform_list)
 
-    # Datasets and loaders
     logger.info('Loading dataset...')
     dataset, subsets = get_dataset(
         config=config.data,
@@ -246,7 +238,6 @@ def main():
         follow_batch=FOLLOW_BATCH, exclude_keys=collate_exclude_keys
     )
 
-    # Model
     logger.info('Building model...')
     model = ScorePosNet3D(
         config.model,
@@ -258,7 +249,6 @@ def main():
     logger.info(f'Ligand feature dim: {ligand_featurizer.feature_dim}')
     logger.info(f'# trainable parameters: {misc.count_parameters(model) / 1e6:.4f} M')
 
-    # Optimizer and scheduler
     optimizer = utils_train.get_optimizer(config.train.optimizer, model)
     scheduler = utils_train.get_scheduler(config.train.scheduler, optimizer)
 
@@ -317,13 +307,12 @@ def main():
             loss_v = results['loss_v']
             loss_exp = results['loss_exp']
 
-            # === Gated intermolecular energy term with a curriculum ramp ===
-            # total energy weight = loss_vdw_weight * min(it / vdw_ramp_iters, vdw_ramp_cap)
-            # With the shipped values of 0.05, 200000 and 1.0 that is
-            # omega_m = 0.05 * min(it / 200000, 1). The ramp is applied here rather than inside
-            # the model, because the model's loss method has no access to the optimizer
-            # iteration. The cap keeps the energy term from growing past full strength and
-            # overwhelming the diffusion loss.
+            # Curriculum ramp on the gated energy term. The total weight is
+            # loss_vdw_weight * min(it / vdw_ramp_iters, vdw_ramp_cap), which with the shipped
+            # values of 0.05, 200000 and 1.0 is omega_m = 0.05 * min(it / 200000, 1). The ramp
+            # lives here rather than in the model, because the model's loss method has no access
+            # to the optimizer iteration. The cap keeps the energy term from growing past full
+            # strength and overwhelming the diffusion loss.
             loss_vdw = results.get('loss_vdw', None)
             vdw_weight = getattr(config.model, 'loss_vdw_weight', 0.)
             if loss_vdw is not None and vdw_weight > 0:
@@ -353,7 +342,6 @@ def main():
             writer.add_scalar('train/grad', orig_grad_norm, it)
             writer.flush()
 
-            # Wandb logging
             if use_wandb:
                 wandb_log = {
                     'train/loss': float(loss * config.train.n_acc_batch),
@@ -364,8 +352,8 @@ def main():
                     'train/grad_norm': float(orig_grad_norm),
                     'iteration': it,
                 }
-                # Log the raw energy, the ramp factor, and the effective (weighted) term
-                # actually added to the total loss.
+                # The raw energy, the ramp factor, and the weighted term actually added to the
+                # total loss.
                 if loss_vdw is not None:
                     ramp_iters = getattr(config.train, 'vdw_ramp_iters', 200000)
                     ramp_cap = getattr(config.train, 'vdw_ramp_cap', 1.0)
@@ -431,7 +419,6 @@ def main():
             logger=logger
         )
 
-        # Pearson correlation between predicted and reference affinity
         pred_exp_all = np.concatenate(all_pred_exp, axis=0)
         true_exp_all = np.concatenate(all_true_exp, axis=0)
         exp_pearsonr = get_pearsonr(true_exp_all, pred_exp_all)
@@ -463,7 +450,6 @@ def main():
         ).set(title=f'Affinity PCC: {exp_pearsonr[0]:.4f}').figure
         writer.add_figure('val/pcc_fig', fig, it)
 
-        # Wandb validation logging
         if use_wandb:
             wandb_val_log = {
                 'val/loss': avg_loss,
@@ -562,7 +548,6 @@ def main():
                     shutil.copyfile(ckpt_path, os.path.join(ckpt_dir, 'best.pt'))
                     logger.info(f'[Checkpoint] Saved new best checkpoint: {ckpt_path} (also -> best.pt)')
 
-                    # Log best model info to wandb
                     if use_wandb:
                         wandb.run.summary['best_val_loss'] = best_loss
                         wandb.run.summary['best_iter'] = best_iter
@@ -573,7 +558,6 @@ def main():
         logger.info('Training interrupted by user.')
 
     finally:
-        # Save final model artifact to wandb
         if use_wandb:
             if best_ckpt_path and os.path.exists(best_ckpt_path):
                 artifact = wandb.Artifact(

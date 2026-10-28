@@ -1,26 +1,21 @@
 #!/usr/bin/env python3
-"""Ligand internal strain (MMFF94s) and the size/flexibility covariates, per molecule.
-
-    python scripts/strain_energy.py --dir eval_out/mymodel [--jobs 8]
+"""Ligand internal strain (MMFF94s) and the size and flexibility covariates, per molecule.
 
     E_strain = E_FF(pose as generated) - E_FF(same molecule, freely relaxed)
 
-Both terms use the same force field and the same molecule, so the difference isolates how
-far the generated conformer sits above its own nearest local minimum, in kcal/mol. Nothing
-here touches the protein or a docking score, which is what makes strain independent of the
+Both terms use the same force field and the same molecule, so the difference isolates how far
+the generated conformer sits above its own nearest local minimum, in kcal/mol. Nothing here
+touches the protein or a docking score, which is what makes strain independent of the
 Vina-derived training signal.
 
-Strain grows roughly linearly with molecule size, so `strain_per_heavy` is the comparable
-column. heavy / n_rot / tpsa are emitted alongside it because strain and pose error both
-increase with size and flexibility, and a comparison that ignores them credits a model for
-making small rigid molecules.
+Strain grows roughly linearly with molecule size, so strain_per_heavy is the comparable column.
+heavy, n_rot and tpsa are emitted alongside it because strain and pose error both increase with
+size and flexibility, and a comparison that ignores them credits a model for making small rigid
+molecules.
 
-Disconnected molecules are kept and flagged (`n_frags`) rather than dropped. They are a
-large fraction of some models' output and absent from others', so skipping them would make
-the missingness depend on the quantity being compared.
-
-Input:  <dir>/sdf/pocket<NNN>.sdf, from scripts/eval_export_sdf.py
-Output: <dir>/strain.csv
+Disconnected molecules are kept and flagged through n_frags rather than dropped. They are a
+large fraction of some models' output and absent from others', so skipping them would make the
+missingness depend on the quantity being compared.
 """
 import argparse
 import csv
@@ -41,7 +36,7 @@ FIELDS = ['name', 'pocket_idx', 'heavy', 'n_rot', 'tpsa', 'n_frags',
 
 
 def strain_energy(mol, max_iters=2000):
-    """-> (strain, e_pose, e_relaxed, status). Never raises."""
+    """Returns (strain, e_pose, e_relaxed, status) and never raises."""
     try:
         m = Chem.AddHs(deepcopy(mol), addCoords=True)
     except Exception:                                         # noqa: BLE001

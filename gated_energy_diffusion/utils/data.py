@@ -43,9 +43,7 @@ class PDBProtein(object):
 
         self.ptable = Chem.GetPeriodicTable()
 
-        # Molecule properties
         self.title = None
-        # Atom properties
         self.atoms = []
         self.element = []
         self.atomic_weight = []
@@ -53,7 +51,6 @@ class PDBProtein(object):
         self.atom_name = []
         self.is_backbone = []
         self.atom_to_aa_type = []
-        # Residue properties
         self.residues = []
         self.amino_acid = []
         self.center_of_mass = []
@@ -70,7 +67,7 @@ class PDBProtein(object):
                 element_symb = line[76:78].strip().capitalize()
                 if len(element_symb) == 0:
                     element_symb = line[13:14]
-                # For PDBQT files, take the first character of the atom name as the element
+                # In a PDBQT file the element is the first character of the atom name.
                 if len(element_symb) > 1 and element_symb[1].isdigit():
                     element_symb = element_symb[0]
                 yield {
@@ -99,7 +96,6 @@ class PDBProtein(object):
                 break  # Some PDBs have more than 1 model.
 
     def _parse(self):
-        # Process atoms
         residues_tmp = {}
         for atom in self._enum_formatted_atom_lines():
             if atom['type'] == 'HEADER':
@@ -133,7 +129,6 @@ class PDBProtein(object):
                 assert residues_tmp[chain_res_id]['chain'] == atom['chain']
                 residues_tmp[chain_res_id]['atoms'].append(next_ptr)
 
-        # Process residues
         self.residues = [r for _, r in residues_tmp.items()]
         for residue in self.residues:
             sum_pos = np.zeros([3], dtype=np.float32)
@@ -254,7 +249,6 @@ def parse_pdbbind_index_file(path):
 def parse_sdf_file(path):
     fdefName = os.path.join(RDConfig.RDDataDir, 'BaseFeatures.fdef')
     factory = ChemicalFeatures.BuildFeatureFactory(fdefName)
-    # read mol
     if path.endswith('.sdf'):
         rdmol = Chem.MolFromMolFile(path, sanitize=False)
     elif path.endswith('.mol2'):
@@ -264,14 +258,11 @@ def parse_sdf_file(path):
     Chem.SanitizeMol(rdmol)
     rdmol = Chem.RemoveHs(rdmol)
 
-    # Remove Hydrogens.
-    # rdmol = next(iter(Chem.SDMolSupplier(path, removeHs=True)))
     rd_num_atoms = rdmol.GetNumAtoms()
     feat_mat = np.zeros([rd_num_atoms, len(ATOM_FAMILIES)], dtype=np.compat.long)
     for feat in factory.GetFeaturesForMol(rdmol):
         feat_mat[feat.GetAtomIds(), ATOM_FAMILIES_ID[feat.GetFamily()]] = 1
 
-    # Get hybridization in the order of atom idx.
     hybridization = []
     for atom in rdmol.GetAtoms():
         hybr = str(atom.GetHybridization())
