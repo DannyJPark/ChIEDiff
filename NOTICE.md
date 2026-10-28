@@ -95,5 +95,31 @@ CC-BY-4.0 requires attribution when the data are reused. Cite the archive by its
 The code is MIT, with the one GPL-2.0 file noted above.
 
 `results/` also holds rows measured from generated molecules that other projects released.
-Those projects' own terms govern their released molecules, and they are not uniform. See the
-per-baseline table below.
+Those projects' own terms govern their released molecules, and they are not uniform.
+
+## Compared models
+
+Each row in `results/` named below was measured from molecules the upstream project released,
+or from molecules generated here with the upstream code. Licences were read from each
+project's own `LICENSE` file or its GitHub licence API.
+
+| Row id | Project | Repository | Licence | Non-commercial | Share-alike |
+|---|---|---|---|---|---|
+| `reference` | CrossDocked2020 | <https://bits.csb.pitt.edu/files/crossdock2020/> | CC0 1.0 | no | no |
+| `pocket2mol` | Pocket2Mol, ICML 2022 | <https://github.com/pengxingang/Pocket2Mol> | MIT | no | no |
+| `targetdiff` | TargetDiff, ICLR 2023 | <https://github.com/guanjq/targetdiff> | MIT | no | no |
+| `ar` | 3D-Generative-SBDD, NeurIPS 2021 | <https://github.com/luost26/3D-Generative-SBDD> | MIT | no | no |
+| `kgdiff` | KGDiff, Brief. Bioinform. 2024 | <https://github.com/CMACH508/KGDiff> | MIT for the code; its data archive is CC-BY-4.0 | no | no |
+| `ipdiff` | IPDiff, ICLR 2024 | <https://github.com/YangLing0818/IPDiff> | MIT | no | no |
+| `alidiff` | AliDiff, NeurIPS 2024 | <https://github.com/MinkaiXu/AliDiff> | MIT | no | no |
+| `molcraft` | MolCRAFT, ICML 2024 | <https://github.com/AlgoMole/MolCRAFT> | **CC BY-NC-SA 4.0** | **yes** | **yes** |
+| `decompdiff` | DecompDiff, ICML 2023 | <https://github.com/bytedance/DecompDiff> | **CC BY-NC 4.0** | **yes** | no |
+| `pidiff_pub`, `pidiff_retrain` | PIDiff, Comput. Biol. Med. 2024 | <https://github.com/hello-maker/PIDiff> | **none stated** | unknown | unknown |
+
+TargetDiff's, Pocket2Mol's, AR's, IPDiff's and AliDiff's MIT terms cover their code. None of
+those projects states terms for the molecule sets they release separately. KGDiff's released
+archive is CC-BY-4.0, which asks for attribution.
+
+MolCRAFT's and DecompDiff's terms restrict commercial use, and MolCRAFT's also ask that
+adapted material carry a compatible licence. PIDiff's repository states no terms. Anyone
+reusing the rows measured from those three projects should read their licences first.
