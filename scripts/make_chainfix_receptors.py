@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
-"""Chain-remapped copies of the test-set receptors, for re-measuring PoseCheck clashes and ProLIF.
+"""Write chain-remapped copies of the test-set receptors, for PoseCheck and ProLIF.
 
-    ~/anaconda3/envs/kgdiff/bin/python scripts/make_chainfix_receptors.py
+    python scripts/make_chainfix_receptors.py [--test_set data/test_set]
 
-WHY. PoseCheck 1.3.1 loads a receptor through Biopython's PDBParser, which keys atoms on
-(chainID, resSeq+iCode, atom name, altLoc) and never reads segID. Twelve CrossDocked test receptors
-carry their chain copies only in segID, so the copies collide and PoseCheck keeps one atom per key:
-it measured those pockets against 1/2, 1/3 or 1/4 of the receptor
-(results/pose_fidelity/heavy_clash/receptor_check/). PLIP had the same defect and was fixed by
-scripts/plip_interactions.remap_chains, which rewrites column 22 from the distinct
-(chainID, segID) pairs. This applies that very function, unchanged, to every receptor.
+PoseCheck 1.3.1 loads a receptor through Biopython's PDBParser, which keys atoms on
+(chainID, resSeq+iCode, atom name, altLoc) and never reads segID. Twelve CrossDocked test
+receptors carry their chain copies only in segID, so the copies collide and Biopython keeps
+one atom per key, leaving a partial receptor. PLIP has the same defect, and
+scripts/plip_interactions.remap_chains fixes it by rewriting column 22 from the distinct
+(chainID, segID) pairs. This applies that function to every receptor.
 
-A receptor with a single (chainID, segID) pair is returned untouched by remap_chains; every file is
-still rewritten here (ATOM/HETATM records + END) so all 100 receptors come from one directory and
-one code path. The re-measurement then proves on the unaffected pockets that this rewrite changes
-nothing PoseCheck sees.
+A receptor with a single (chainID, segID) pair comes back untouched, but every file is still
+rewritten (ATOM/HETATM records + END) so all receptors come from one directory and one code
+path.
 
 Output:
-  data/test_set_chainfix/<pocket>/<receptor>.pdb
-  data/test_set_chainfix/manifest.json   per receptor: chain pairs, collisions before/after, sha256
+  <out>/<pocket>/<receptor>.pdb
+  <out>/manifest.json   per receptor: chain pairs, collisions before/after, sha256
 """
-import csv
+import argparse
 import hashlib
 import json
 import sys
@@ -29,10 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import eval_heavy_clash as EH                                       # noqa: E402  (model_dirs)
 import plip_interactions as P                                       # noqa: E402  (remap_chains)
-
-OUT = ROOT / "data" / "test_set_chainfix"
 
 
 def biopython_key_stats(lines):
@@ -44,11 +39,19 @@ def biopython_key_stats(lines):
 
 
 def main():
-    receptors = sorted({r["receptor"] for d in EH.model_dirs()
-                        for r in csv.DictReader(open(ROOT / "eval_out" / d / "manifest.csv"))})
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--test_set', default='data/test_set')
+    ap.add_argument('--out', default=None, help='default: <test_set>_chainfix')
+    args = ap.parse_args()
+
+    test_set = Path(args.test_set)
+    OUT = Path(args.out) if args.out else test_set.parent / (test_set.name + '_chainfix')
+    receptors = sorted(test_set.glob('*/*_rec.pdb'))
+    if not receptors:
+        sys.exit(f'no */*_rec.pdb under {test_set}')
     report, bad = {}, []
-    for rec in receptors:
-        src = ROOT / rec
+    for src in receptors:
+        rec = str(src)
         with open(src) as fh:
             orig = [l.rstrip("\n").ljust(80) for l in fh if l.startswith(("ATOM", "HETATM"))]
         remapped, n_pairs = P.load_receptor(str(src))
@@ -57,12 +60,12 @@ def main():
         assert all(a[:21] == b[:21] and a[22:] == b[22:] for a, b in zip(orig, remapped)), rec
         h0, k0 = biopython_key_stats(orig)
         h1, k1 = biopython_key_stats(remapped)
-        dest = OUT / Path(rec).relative_to("data/test_set")
+        dest = OUT / src.relative_to(test_set)
         dest.parent.mkdir(parents=True, exist_ok=True)
         text = "\n".join(remapped) + "\nEND\n"
         dest.write_text(text)
         report[rec] = {
-            "chainfix_path": str(dest.relative_to(ROOT)),
+            "chainfix_path": str(dest),
             "n_chain_segid_pairs": n_pairs,
             "chain_column_changed": any(a[21] != b[21] for a, b in zip(orig, remapped)),
             "heavy_atoms": h1, "biopython_keys_before": k0, "biopython_keys_after": k1,
@@ -75,7 +78,7 @@ def main():
          "n_receptors": len(receptors), "receptors": report}, indent=1) + "\n")
     fixed = [r for r, v in report.items() if v["collisions_before"] > 0]
     relabeled = [r for r, v in report.items() if v["chain_column_changed"]]
-    print(f"{len(receptors)} receptors written to {OUT.relative_to(ROOT)}")
+    print(f"{len(receptors)} receptors written to {OUT}")
     print(f"  had Biopython key collisions before: {len(fixed)}")
     for r in fixed:
         v = report[r]

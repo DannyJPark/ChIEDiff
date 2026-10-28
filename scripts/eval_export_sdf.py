@@ -21,6 +21,7 @@ Usage:
 """
 import argparse
 import csv
+import json
 import os
 
 import torch
@@ -125,10 +126,20 @@ def load_grouped(path):
     return out
 
 
-def canonical_ligand_files(path='results/sampling_results/targetdiff_vina_docked.pt'):
-    """Canonical ligand_filename per CrossDock data_id, from the canonical grouped set."""
+def canonical_ligand_files(path='data/test_pocket_order.json'):
+    """The canonical ligand_filename of each test pocket, in pocket order.
+
+    Pocket identity keys on the FULL ligand filename, never on the pocket directory: seven
+    CrossDocked sites appear twice in the test split under one directory with different
+    reference ligands, so regrouping by directory silently pairs molecules with the wrong
+    receptor. A .pt of grouped results is also accepted, and the order is read from it the
+    same way.
+    """
     if not os.path.isfile(path):
         return []
+    if path.endswith('.json'):
+        with open(path) as fh:
+            return json.load(fh)
     obj = _torch_load(path)
     out = []
     for elem in obj:

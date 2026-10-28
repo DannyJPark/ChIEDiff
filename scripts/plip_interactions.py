@@ -138,14 +138,17 @@ def load_grouped(path):
     return [[e] for e in obj]
 
 
-def canonical_ligand_files(path='results/sampling_results/targetdiff_vina_docked.pt'):
-    """Canonical ligand_filename per CrossDock data_id, from the canonical grouped set.
+def canonical_ligand_files(path='data/test_pocket_order.json'):
+    """The canonical ligand_filename of each test pocket, in pocket order.
 
-    Same source and semantics as eval_export_sdf.py:128 -- the two must agree or the SDF exports
-    and the PLIP jsonl would disagree on what pocket i is.
+    Same source and semantics as eval_export_sdf.canonical_ligand_files: the two must agree,
+    or the SDF exports and the PLIP jsonl disagree on which pocket is pocket i.
     """
     if not os.path.isfile(path):
         return []
+    if path.endswith('.json'):
+        with open(path) as fh:
+            return json.load(fh)
     out = []
     for elem in _torch_load(path):
         mols = elem if isinstance(elem, list) else [elem]

@@ -1,43 +1,46 @@
 #!/usr/bin/env python3
-"""Self-redock the CrossDocked crystal ligand into its own receptor with
-smina / vinardo / gnina / vina_meeko and measure RMSD(crystal pose, redocked pose). This is the
-ACHIEVABLE CEILING of the pipeline (design doc T3-b): if an engine cannot even reproduce the known
-crystal pose, a generated pose cannot beat that. Same protocol as the generated-molecule redock:
+"""Self-redock each CrossDocked crystal ligand into its own receptor and measure
+RMSD(crystal pose, redocked pose). This is the achievable ceiling of the pipeline: if an
+engine cannot reproduce the known crystal pose, a generated pose cannot beat that.
+
+    python scripts/self_redock.py --manifest eval_out/mymodel/manifest.csv --pocket 0
+
+Same protocol as the generated-molecule redock:
   smina/vinardo/gnina : --autobox_ligand <crystal> --exhaustiveness 8 --num_modes 1 --seed 42
-  vina_meeko          : crystal-ligand-centred 20A cube, exhaustiveness 16, meeko exact atom map
-`vinardo` is smina with --scoring vinardo -- same binary, same search, same box, same seed, so the
-ceiling row isolates the scoring function exactly as the model rows do.
-RMSD is rdMolAlign.CalcRMS (non-superposed, symmetry-aware), same as everything else.
+  vina_meeko          : crystal-ligand-centred 20A cube, exhaustiveness 16, meeko atom map
+`vinardo` is smina with --scoring vinardo, so it is the same binary, search, box and seed and
+the ceiling row isolates the scoring function exactly as the model rows do.
 
-SANITISATION MUST MATCH THE MODEL ROWS, PER ARM (fixed 2026-07-28)
-------------------------------------------------------------------
-CalcRMS matches on element AND bond order, so whether RDKit perceived aromaticity decides
-whether an exact graph match exists at all. The model rows use, per arm:
-    smina/gnina  pose_rmsd.py       : reference sanitize=False , docked SDF sanitize=False
-    AutoDock Vina vina_meeko_dock.py: reference sanitize=True  , meeko mol in memory (sanitised)
-This script used to read the reference SANITISED and the smina/gnina output UNSANITISED -- an
-asymmetric third convention. Aromatic-vs-Kekule then blocks the exact match, and 66/100 pockets
-fell back to skeleton isomorphism (vs 0-3% in the model rows), which biases RMSD DOWNWARD. The
-ceiling was therefore measured on a more permissive instrument than the models it bounds.
-Now: crystal_raw (sanitize=False) is the reference for smina/gnina, crystal (sanitised) for meeko.
-sanitize=True cannot simply be dropped everywhere -- meeko needs it (unsanitised input gives
-non-finite Gasteiger charges and writes 0/12 PDBQTs).
+RMSD is rdMolAlign.CalcRMS, non-superposed and symmetry-aware, as everywhere else.
 
-Docked poses are KEPT (--pose_dir) so the RMSD can be recomputed without re-docking.
+Sanitisation has to match the model rows arm by arm. CalcRMS matches on element and bond
+order, so whether RDKit perceived aromaticity decides whether an exact graph match exists at
+all:
+    smina/gnina  (pose_rmsd.py)       reference sanitize=False, docked SDF sanitize=False
+    Vina         (vina_meeko_dock.py) reference sanitize=True, meeko mol in memory
+Reading the reference sanitised and the smina/gnina output unsanitised is a third convention,
+and aromatic-versus-Kekule then blocks the exact match and forces the skeleton-isomorphism
+fallback, which biases RMSD downward and measures the ceiling on a more permissive instrument
+than the models it bounds. So crystal_raw (sanitize=False) is the reference for smina/gnina
+and crystal (sanitised) for meeko. sanitize=True cannot be dropped everywhere, because meeko
+needs it: unsanitised input gives non-finite Gasteiger charges and writes no PDBQT.
 
-One pocket per invocation; writes/updates <--out>/pocketNNN.csv.
-Usage:  python scripts/self_redock.py --pocket 0 [--engines smina,vinardo,gnina,vina_meeko]
+Docked poses are kept (--pose_dir) so RMSD can be recomputed without re-docking.
+
+One pocket per invocation; writes or updates <out>/pocketNNN.csv.
 """
-import argparse, csv, os, subprocess, sys, tempfile
+import argparse, csv, os, shutil, subprocess, sys, tempfile
 import numpy as np
 from rdkit import Chem, RDLogger
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rmsd_core import rmsd_best_effort, heavy, coords
 RDLogger.DisableLog('rdApp.*')
-SMINA=os.path.expanduser('~/bin/smina'); GNINA=os.path.expanduser('~/bin/gnina')
+# smina and gnina are installed from their own upstreams; override with $SMINA / $GNINA.
+SMINA = os.environ.get('SMINA') or shutil.which('smina') or os.path.expanduser('~/bin/smina')
+GNINA = os.environ.get('GNINA') or shutil.which('gnina') or os.path.expanduser('~/bin/gnina')
 
-def manifest_row(pocket):
-    for r in csv.DictReader(open('eval_out/vina_fixed/manifest.csv')):
+def manifest_row(manifest, pocket):
+    for r in csv.DictReader(open(manifest)):
         if int(r['pocket_idx'])==pocket: return r
     return None
 
@@ -86,11 +89,13 @@ def vina_meeko_self(crystal, receptor_pdbqt, ref_centroid, out_sdf):
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--pocket',type=int,required=True)
+    ap.add_argument('--manifest',default='eval_out/native/manifest.csv',
+                    help='any manifest.csv from eval_export_sdf: only receptor and ref_ligand are read')
     ap.add_argument('--engines',default='smina,vinardo,gnina,vina_meeko')
-    ap.add_argument('--out',default='results/reference_protocol/self_redock')
+    ap.add_argument('--out',default='self_redock')
     ap.add_argument('--pose_dir',default='',help='keep the docked poses here (default <out>/poses)')
     a=ap.parse_args()
-    r=manifest_row(a.pocket)
+    r=manifest_row(a.manifest,a.pocket)
     if r is None: print(f'pocket {a.pocket} not in manifest'); return 0
     receptor=r['receptor'].strip(); ref=r['ref_ligand'].strip()
     receptor_pdbqt=receptor[:-4]+'.pdbqt'

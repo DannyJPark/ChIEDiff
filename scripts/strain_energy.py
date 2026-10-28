@@ -1,30 +1,26 @@
 #!/usr/bin/env python3
-"""Ligand internal strain (MMFF94s) + the size/flexibility confounders, per generated molecule.
+"""Ligand internal strain (MMFF94s) and the size/flexibility covariates, per molecule.
 
-Why this metric carries the argument
-------------------------------------
-Every Vina-derived number in this project is suspect as evidence that our poses are "physically
-plausible", because the models were trained with a Vina-derived physics loss: winning on Vina is
-guaranteed by construction, not discovered (defect D8). Internal strain is computed with MMFF94s
-and never touches the protein or any docking score, so it is genuinely independent evidence.
+    python scripts/strain_energy.py --dir eval_out/mymodel [--jobs 8]
 
     E_strain = E_FF(pose as generated) - E_FF(same molecule, freely relaxed)
 
-Both terms use the SAME force field and the SAME molecule, so the difference isolates how far the
-generated conformer sits above its own nearest local minimum. Units kcal/mol.
+Both terms use the same force field and the same molecule, so the difference isolates how
+far the generated conformer sits above its own nearest local minimum, in kcal/mol. Nothing
+here touches the protein or a docking score, which is what makes strain independent of the
+Vina-derived training signal.
 
-Strain grows roughly linearly with molecule size, so `strain_per_heavy` is the comparable column;
-n_rot / heavy / tpsa are emitted alongside because the mixed-effects model in Phase 5 has to
-adjust for them (defect D5: RMSD and strain both increase with size and flexibility, so a model
-that makes small rigid molecules wins on both without being better).
+Strain grows roughly linearly with molecule size, so `strain_per_heavy` is the comparable
+column. heavy / n_rot / tpsa are emitted alongside it because strain and pose error both
+increase with size and flexibility, and a comparison that ignores them credits a model for
+making small rigid molecules.
 
-Disconnected molecules are kept and flagged (`n_frags`), not dropped -- they are 15-28% of the
-physics models' output and 0% of every baseline's, so silently skipping them would rebuild the
-missing-not-at-random bias (see results/pose_fidelity/fragmentation_census.csv).
+Disconnected molecules are kept and flagged (`n_frags`) rather than dropped. They are a
+large fraction of some models' output and absent from others', so skipping them would make
+the missingness depend on the quantity being compared.
 
-Usage:
-    python scripts/strain_energy.py --tag vina_fixed
-    python scripts/strain_energy.py --all --jobs 8
+Input:  <dir>/sdf/pocket<NNN>.sdf, from scripts/eval_export_sdf.py
+Output: <dir>/strain.csv
 """
 import argparse
 import csv
@@ -99,12 +95,14 @@ def one_pocket(task):
     return rows
 
 
-def run_model(model, jobs):
+def run_model(model, jobs, pockets=None):
     sdf_dir = os.path.join(model['dir'], 'sdf')
     tasks = []
     for f in sorted(os.listdir(sdf_dir)):
         if f.startswith('pocket') and f.endswith('.sdf'):
-            tasks.append((os.path.join(sdf_dir, f), int(f[6:9])))
+            pi = int(f[6:9])
+            if pockets is None or pi in pockets:
+                tasks.append((os.path.join(sdf_dir, f), pi))
     if jobs > 1:
         with mp.Pool(jobs) as pool:
             rows = [r for chunk in pool.imap(one_pocket, tasks) for r in chunk]
@@ -130,30 +128,19 @@ def run_model(model, jobs):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--registry', default='configs/models.json')
-    ap.add_argument('--tag', default='')
-    ap.add_argument('--all', action='store_true')
+    ap.add_argument('--dir', required=True, help='eval_out/<model> (holds sdf/)')
     ap.add_argument('--jobs', type=int, default=4)
+    ap.add_argument('--pockets', type=int, nargs='+', help='restrict to these pocket_idx')
     args = ap.parse_args()
 
-    import sys as _sys, os as _os
-
-    _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
-
-    import model_registry                                    # noqa: E402
-
-    reg = model_registry.load_as(args.registry, 'pose')
-    models = [m for m in reg['models'] if args.all or m['tag'] == args.tag]
-    if not models:
-        raise SystemExit('nothing selected: pass --tag <t> or --all')
-
     print(f'{"model":14s} {"n":>8s} {"mmff-typable":>21s} {"frag":>10s}  strain/heavy (median)')
-    summary = [run_model(m, args.jobs) for m in models]
+    run_model({'dir': args.dir, 'tag': os.path.basename(args.dir.rstrip("/"))},
+              args.jobs, set(args.pockets) if args.pockets else None)
 
-    print('\nNote: strain is NOT comparable across models without the per-heavy normalisation or')
-    print('the Phase 5 size/flexibility adjustment -- it grows with molecule size.')
-    print('`strain_status != ok` means MMFF could not type the molecule; that rate is itself a')
-    print('validity signal and is reported rather than hidden.')
+    print('\nStrain is not comparable across models without the per-heavy normalisation or an')
+    print('adjustment for size and flexibility: it grows with molecule size.')
+    print('`strain_status != ok` means MMFF could not type the molecule. That rate is itself a')
+    print('validity signal, so it is reported rather than dropped.')
     return 0
 
 

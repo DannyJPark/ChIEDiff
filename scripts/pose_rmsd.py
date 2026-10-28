@@ -1,31 +1,26 @@
 #!/usr/bin/env python3
 """Generated-pose -> engine-pose RMSD for every engine, one row per molecule.
 
-Primary metrics of the pose-fidelity experiment (analysis/EXPERIMENT_pose_fidelity.md):
-    rmsd_gen_min_*   how far local minimisation moves the pose -- the pure "is this already a
-                     local minimum" measure, independent of the box and of the global search
-    rmsd_gen_dock_*  how far a full re-search moves it (secondary; box-dependent)
+    python scripts/pose_rmsd.py --dir eval_out/mymodel [--jobs 8]
 
-RMSD is the non-superposed, symmetry-minimised heavy-atom RMSD (rmsd_core). Superposing would
-answer a different question and always flatters the model.
+    rmsd_gen_min_*   how far local minimisation moves the pose, which measures whether the
+                     pose already sits at a local minimum, independent of the box and of
+                     the global search
+    rmsd_gen_dock_*  how far a full re-search moves it, which depends on the box
 
-Atom correspondence, and why `method` is recorded per row
----------------------------------------------------------
-smina/gnina take SDF in and give SDF out, but they round-trip through PDBQT internally: measured
-on pocket000, 0/20 molecules came back with their heavy-atom order intact, and 5/20 came back with
-bond orders re-perceived so that an exact graph match is impossible. So `rmsd_core.rmsd_best_effort`
-tries exact CalcRMS first and only then falls back to skeleton isomorphism (with the bond-count
-gate that makes it a true isomorphism). Which path was used is written to `method_*` so the
-fallback's known downward bias (D2) can be measured against the meeko/Vina arm rather than assumed
-away.
+RMSD is the non-superposed, symmetry-minimised heavy-atom RMSD (rmsd_core). Superposing
+answers a different question and always flatters the model.
 
-Coverage is reported per model and must be read alongside
-results/pose_fidelity/fragmentation_census.csv: the physics models emit 15-28% disconnected
-molecules and the baselines 0%, so equal-looking coverage here is not equal-quality output.
+Atom correspondence is recorded per row. smina and gnina take SDF in and give SDF out, but
+round-trip through PDBQT internally, so heavy-atom order is not preserved and bond orders
+are sometimes re-perceived, which makes an exact graph match impossible.
+`rmsd_core.rmsd_best_effort` tries exact CalcRMS first and falls back to skeleton
+isomorphism, with the bond-count gate that keeps it a true isomorphism. Which path was used
+goes into `method_*`, because the fallback can only bias RMSD downward and that bias has to
+be measurable rather than assumed.
 
-Usage:
-    python scripts/pose_rmsd.py --tag vina_fixed
-    python scripts/pose_rmsd.py --all --jobs 8
+Input:  <dir>/sdf/pocket<NNN>.sdf plus the engine outputs beside them
+Output: <dir>/pose_rmsd.csv
 """
 import argparse
 import collections
@@ -162,30 +157,14 @@ def run_model(model, jobs):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--registry', default='configs/models.json')
-    ap.add_argument('--tag', default='')
-    ap.add_argument('--all', action='store_true')
+    ap.add_argument('--dir', required=True, help='eval_out/<model> (holds sdf/)')
     ap.add_argument('--jobs', type=int, default=4)
     args = ap.parse_args()
 
-    import sys as _sys, os as _os
-
-    _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
-
-    import model_registry                                    # noqa: E402
-
-    # Unified registry; load_as() renders the legacy 'pose' view, proven
-
-    # byte-identical by scripts/check_registry_sync.py.
-
-    reg = model_registry.load_as(args.registry, 'pose')
-    models = [m for m in reg['models'] if args.all or m['tag'] == args.tag]
-    if not models:
-        raise SystemExit('nothing selected: pass --tag <t> or --all')
-    for m in models:
-        run_model(m, args.jobs)
-    print('\nmethod=skeleton_iso rows used the bond-order-agnostic fallback: correct isomorphism,')
-    print('but it can only bias RMSD DOWNWARD. Compare against the meeko/Vina arm before quoting.')
+    run_model({'dir': args.dir, 'tag': os.path.basename(args.dir.rstrip('/'))}, args.jobs)
+    print('\nmethod=skeleton_iso rows used the bond-order-agnostic fallback. It is a correct')
+    print('isomorphism, but it can only bias RMSD downward, so compare against the meeko/Vina')
+    print('arm before quoting those rows.')
     return 0
 
 
