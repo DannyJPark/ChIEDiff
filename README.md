@@ -40,7 +40,7 @@ Makefile                  install, archive, measure, clean. Run `make` for the l
 | Project name | ChIEDiff |
 | Project home page | https://github.com/DannyJPark/ChIEDiff |
 | Archived version | see CITATION.cff |
-| Data and weights | [10.5281/zenodo.23029439](https://doi.org/10.5281/zenodo.23029439) |
+| Data and weights | [10.5281/zenodo.23029438](https://doi.org/10.5281/zenodo.23029438) |
 | Operating systems | Linux. Developed on RHEL 9.4. POSIX only, not tested on macOS or Windows |
 | Programming language | Python 3.9 |
 | Other requirements | PyTorch 1.11.0 with CUDA 11.3, PyTorch Geometric 2.0.4, torch-scatter 2.0.9, RDKit 2024.03.6, NumPy 1.23.1, Open Babel 3.1.1, and one NVIDIA GPU for training and sampling. Evaluation additionally needs AutoDock Vina 1.2.2, Meeko 0.6.1, SMINA, GNINA 1.1, PLIP 3.0.0, PoseCheck 1.3.1 with ProLIF 2.2.0, and PoseBusters 0.6.5, across three more environments |
@@ -70,7 +70,7 @@ seconds. Section 2 recomputes the chemistry, the Vina statistics and the diversi
 generated molecules, which needs the data archive:
 
 ```bash
-python tools/download_archive.py --doi 10.5281/zenodo.23029439
+python tools/download_archive.py --doi 10.5281/zenodo.23029438
 ```
 
 ## Train
@@ -84,8 +84,8 @@ The released checkpoint is iteration 1,195,000 at batch size 2 with 2 accumulati
 which is on the order of a week on one 24 GB card. `--train_report_iter` and `--save_freq`
 control how often it logs and checkpoints.
 
-Training needs the processed LMDB `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`,
-a sparse file that reports 4.07 GB and holds about 1.45 GB of data. It carries the Vina
+Training needs the processed LMDB, which comes from the data archive as a 1.07 GB gzip and
+decompresses to a 4.07 GB sparse file holding about 1.45 GB of data. It carries the Vina
 affinity labels the objective reads, and the split indexes its byte-sorted key order, so use
 that file rather than rebuilding one. `data/README.md` has the detail.
 

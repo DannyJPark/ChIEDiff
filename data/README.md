@@ -1,11 +1,11 @@
 # `data/` — what ships here, and what you have to fetch
 
 Two small files are in the repository. The large ones are in the data archive,
-[10.5281/zenodo.23029439](https://doi.org/10.5281/zenodo.23029439), because they are hundreds
+[10.5281/zenodo.23029438](https://doi.org/10.5281/zenodo.23029438), because they are hundreds
 of megabytes and carry their own DOI and licence.
 
 ```bash
-python tools/download_archive.py --doi 10.5281/zenodo.23029439
+python tools/download_archive.py --doi 10.5281/zenodo.23029438
 ```
 
 That writes the archive into `data/` and `archive/` as laid out below, and checks every file
@@ -47,14 +47,19 @@ assert derived == canon, 'the shipped pocket order does not match this LMDB'
 | `archive/chiediff_generated_molecules.pt` | 65 MB | the 9,999 generated molecules with their docking scores |
 | `archive/measurements/` | 66 MB packed | the per-pocket measurement outputs behind every table |
 | `data/test_set/`, `data/test_set_chainfix/` | 48 MB packed, 190 MB unpacked | the 100 test receptors with their reference ligands, and the chain-remapped copies |
+| `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb.gz` | 1.07 GB | the processed training set |
 
 The downloader unpacks the two tarballs into those locations. Pass `--no-extract` to leave
-them packed.
+them packed. Decompress the training set yourself, in `data/`:
+
+```bash
+gunzip data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb.gz
+```
 
 ## The training LMDB
 
-`crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb` is the processed training set.
-It reports 4.07 GB and holds about 1.45 GB of data, because LMDB preallocates its map and
+`crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb` is the processed training set, and
+it comes from the archive gzipped. Decompressed it reports 4.07 GB and holds about 1.45 GB of data, because LMDB preallocates its map and
 leaves the remainder of the file as a hole, so `ls` and `du --apparent-size` disagree with
 plain `du`. It compresses to roughly 1.2 GB.
 

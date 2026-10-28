@@ -83,7 +83,7 @@ email = "sanghyun@yonsei.ac.kr"
 [project.urls]
 Homepage = "https://github.com/DannyJPark/ChIEDiff"
 Software-archive = "https://doi.org/10.5281/zenodo.23000086"
-Data-archive = "https://doi.org/10.5281/zenodo.23029439"
+Data-archive = "https://doi.org/10.5281/zenodo.23029438"
 
 [tool.setuptools.packages.find]
 include = ["gated_energy_diffusion*"]

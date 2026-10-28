@@ -86,7 +86,7 @@ each re-verified against a primary source; only the redistributed files above we
 |---|---|---|
 | the split and the test pocket order | this repository, `data/` | see the per-file table above |
 | the summary result files | this repository, `results/` | CC-BY-4.0, as the data archive below |
-| trained weights, generated molecules, measurement outputs, evaluation receptors | [10.5281/zenodo.23029439](https://doi.org/10.5281/zenodo.23029439) | CC-BY-4.0, receptors CC0 |
+| trained weights, generated molecules, measurement outputs, evaluation receptors | [10.5281/zenodo.23029438](https://doi.org/10.5281/zenodo.23029438) | CC-BY-4.0, receptors CC0 |
 
 CC-BY-4.0 requires attribution when the data are reused. Cite the archive by its DOI.
 

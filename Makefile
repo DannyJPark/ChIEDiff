@@ -21,7 +21,7 @@ install:  ## create the training environment and install the package into it
 	@echo "The evaluation environments are separate; see envs/README.md."
 
 archive:  ## download the weights, molecules, measurements and receptors
-	python tools/download_archive.py --doi 10.5281/zenodo.23029439
+	python tools/download_archive.py --doi 10.5281/zenodo.23029438
 
 measure:  ## measure the archived molecules on five pockets
 	bash bin/measure.sh --pt archive/chiediff_generated_molecules.pt --tag chiediff --pockets 0-4

@@ -21,7 +21,7 @@ Section 2 recomputes the chemistry, the Vina statistics, the ring-size distribut
 diversity from the generated molecules themselves. It needs the data archive:
 
 ```bash
-python tools/download_archive.py --doi 10.5281/zenodo.23029439
+python tools/download_archive.py --doi 10.5281/zenodo.23029438
 ```
 
 If a recomputed number disagrees with its published row by more than rounding, that is a bug
@@ -116,9 +116,10 @@ defaults to the configuration's `val_freq`, so a short run needs a smaller value
 anything. `--train_report_iter` sets how often the loss is logged, and `--resume <run dir>`
 picks up where a stopped run left off.
 
-Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`. It carries the
-Vina affinity labels the objective reads, and the split indexes its byte-sorted key order, so
-use that file rather than rebuilding one. `data/README.md` has the detail.
+Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, which the data
+archive carries gzipped. It holds the Vina affinity labels the objective reads, and the split
+indexes its byte-sorted key order, so use that file rather than rebuilding one.
+`data/README.md` has the detail.
 
 Two things to set before a training run:
 
