@@ -1,24 +1,22 @@
 #!/usr/bin/env python3
-"""Shared, correct RMSD primitives for the pose-fidelity experiment.
+"""Shared RMSD primitives for the pose-fidelity measurements.
 
-One definition, used by every arm (smina/SDF, gnina/SDF, meeko/Vina) and by the refactored
-compare_gen_docked.py, so no two tables can silently mean different things by "RMSD".
+Every engine arm (smina/SDF, gnina/SDF, meeko/Vina) uses this one definition, so no two tables
+can mean different things by "RMSD".
 
-    RMSD_sym(a, b) = min over graph automorphisms of the NON-superposed heavy-atom RMSD
+    RMSD_sym(a, b) = min over graph automorphisms of the non-superposed heavy-atom RMSD
 
-`rdMolAlign.CalcRMS` is exactly that: it does NOT align the molecules and it does minimise over
-symmetry-equivalent atom mappings. `GetBestRMS` is the superposing variant and must never be used
-here -- superposing would turn "how far did the pose move in the pocket" into "how different is
-the shape", which is a different question and always flatters the model.
+`rdMolAlign.CalcRMS` is exactly that. It does not align the molecules and it does minimise over
+symmetry-equivalent atom mappings. `GetBestRMS` is the superposing variant and is not used here.
+Superposing replaces the question "how far did the pose move in the pocket" with "how different
+is the shape", which is a different question and one that flatters the model.
 
-What this module deliberately does NOT do
------------------------------------------
-It does not re-derive an atom correspondence from element+connectivity (the old `_skeleton()` +
-`GetSubstructMatches` approach in compare_gen_docked.py). That was substructure matching, not
-graph isomorphism, so it accepted wrong mappings, and taking `min` over them biased RMSD DOWNWARD
-(defects D1/D2). Every caller here feeds molecules whose correspondence is already exact --
-either the same SDF record round-tripped through smina/gnina, or a meeko PDBQT carrying its
-`REMARK SMILES IDX` map -- and CalcRMS only has to resolve genuine symmetry.
+This module deliberately does not re-derive an atom correspondence from element and connectivity
+by substructure matching. A substructure match is not a graph isomorphism, so it accepts wrong
+mappings, and taking the minimum over them biases RMSD downward. Every caller here feeds
+molecules whose correspondence is already exact, either the same SDF record round-tripped
+through smina or gnina, or a meeko PDBQT carrying its `REMARK SMILES IDX` map, so CalcRMS only
+has to resolve genuine symmetry.
 """
 import numpy as np
 from rdkit import Chem, RDLogger
@@ -28,8 +26,8 @@ RDLogger.DisableLog('rdApp.*')
 
 
 def heavy(mol):
-    """Heavy atoms only. Never raises: a pose we want to FLAG as bad must not vanish because
-    RDKit refuses to sanitize it."""
+    """Heavy atoms only. Never raises, because a pose that should be flagged as bad must not
+    vanish from the table just because RDKit refuses to sanitize it."""
     if mol is None:
         return None
     try:
@@ -60,9 +58,10 @@ def centroid_disp(a, b):
 
 
 def positional_rmsd(a, b):
-    """Index-order RMSD, no symmetry. Only meaningful when the two mols are KNOWN to share atom
-    order (smina/gnina SDF round-trip). Meeko does NOT preserve order -- it returns canonical
-    SMILES order -- so this is None-ing out rather than lying is the caller's job."""
+    """Index-order RMSD, with no symmetry minimisation. It is meaningful only when the two
+    molecules are known to share atom order. Meeko does not preserve order, it returns canonical
+    SMILES order, so a caller working with meeko output must leave this unused rather than
+    report it."""
     if a is None or b is None or a.GetNumAtoms() != b.GetNumAtoms() or a.GetNumAtoms() == 0:
         return None
     d = coords(a) - coords(b)
@@ -98,28 +97,28 @@ def _skeleton(mol):
 
 
 def rmsd_skeleton_iso(probe, ref, max_matches=10000):
-    """Fallback for engines that re-perceive bond orders (smina/gnina round-trip through PDBQT).
+    """Fallback for engines that re-perceive bond orders, which is what happens when a pose
+    round-trips through PDBQT inside smina or gnina.
 
     Returns (rmsd, maxed_out) or (None, False).
 
-    This is the legacy approach with its two defects closed:
-      D1  the old code used GetSubstructMatches, which is a SUBGRAPH match and so accepted
-          skeletons with different bond counts. Requiring |V| and |E| to be EQUAL turns a
-          subgraph monomorphism into a genuine isomorphism, which is what RMSD_sym is defined
-          over.
-      D3  hitting the match cap silently truncated the minimisation; `maxed_out` is returned so
-          the caller can record it per row instead of quietly reporting an optimistic number.
+    Two properties keep the fallback honest. Requiring the atom count and the bond count to be
+    equal turns the substructure search into a genuine graph isomorphism, which is what RMSD_sym
+    is defined over. A bare substructure match would accept skeletons with different bond counts.
+    Hitting the match cap truncates the minimisation, so `maxed_out` is returned and the caller
+    can record it per row instead of reporting an optimistic number as a complete one.
 
-    The remaining known bias is D2: erasing bond orders and aromaticity can merge atoms that are
-    chemically distinct, creating symmetries that do not really exist and therefore pulling the
-    minimum DOWN. That is why this is a fallback and never the headline: the meeko/Vina arm has a
-    real index map, and comparing the two on the same molecules is what quantifies this bias.
+    The known bias is that erasing bond orders and aromaticity can merge atoms that are
+    chemically distinct. That creates symmetries which do not exist, and extra symmetries can
+    only pull the minimum down. For that reason this is a fallback and never the headline. The
+    meeko/Vina arm has a real index map, and comparing the two on the same molecules is what
+    quantifies the bias.
     """
     if probe is None or ref is None:
         return None, False
     if probe.GetNumAtoms() != ref.GetNumAtoms() or probe.GetNumAtoms() == 0:
         return None, False
-    if probe.GetNumBonds() != ref.GetNumBonds():          # D1: enforce isomorphism, not subgraph
+    if probe.GetNumBonds() != ref.GetNumBonds():          # isomorphism, not a subgraph match
         return None, False
     ps, rs = _skeleton(probe), _skeleton(ref)
     matches = ps.GetSubstructMatches(rs, uniquify=False, maxMatches=max_matches)
@@ -135,7 +134,7 @@ def rmsd_skeleton_iso(probe, ref, max_matches=10000):
 
 
 def rmsd_best_effort(probe, ref):
-    """-> (rmsd, method, maxed_out). Prefers the exact graph match; falls back to skeleton
+    """-> (rmsd, method, maxed_out). Prefers the exact graph match and falls back to skeleton
     isomorphism only when bond re-perception makes the exact match impossible."""
     r = rmsd_sym(probe, ref)
     if r is not None:
@@ -149,13 +148,13 @@ def rmsd_best_effort(probe, ref):
 def compare(gen_mol, other_mol, same_atom_order=False):
     """Full comparison of one generated pose against one engine pose.
 
-    Returns a dict with rmsd / centroid_disp / jensen_ok (and sym_gain when the atom order is
-    known to match, which is a free consistency probe: the index-order RMSD can never be BELOW
-    the symmetry-minimised one, and their gap is how much symmetry actually bought).
+    Returns a dict with rmsd, centroid_disp and jensen_ok, plus sym_gain when the atom order is
+    known to match. sym_gain is a free consistency probe, because the index-order RMSD can never
+    fall below the symmetry-minimised one and their gap is how much symmetry bought.
 
     jensen_ok encodes the invariant  RMSD >= ||centroid_a - centroid_b||  (Jensen). A valid atom
-    correspondence can never violate it, so a False here means the mapping is wrong -- it is a
-    self-check on the pipeline, not a property of the pose.
+    correspondence cannot violate it, so a False here means the mapping is wrong. It is a
+    self-check on the pipeline rather than a property of the pose.
     """
     g, o = heavy(gen_mol), heavy(other_mol)
     r, method, maxed = rmsd_best_effort(o, g)
@@ -165,9 +164,9 @@ def compare(gen_mol, other_mol, same_atom_order=False):
     if r is not None and cd is not None:
         out['jensen_ok'] = bool(r >= cd - 1e-3)
     if same_atom_order:
-        # Only meaningful if the caller KNOWS the orders match. smina/gnina do NOT preserve
-        # order (they round-trip through PDBQT's torsion-tree ordering), so a negative sym_gain
-        # here is the tell that the assumption is false.
+        # Only meaningful if the caller knows the orders match. smina and gnina do not preserve
+        # order, because they round-trip through PDBQT's torsion-tree ordering, so a negative
+        # sym_gain here is the sign that the assumption is false.
         p = positional_rmsd(o, g)
         if p is not None and r is not None:
             out['sym_gain'] = round(p - r, 6)

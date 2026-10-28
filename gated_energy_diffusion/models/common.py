@@ -123,7 +123,7 @@ def get_r_feat(r, r_exp_func, node_type=None, edge_index=None, mode='basic'):
         raise ValueError(mode)
     return r_feat
 
-def compose_context(h_protein, h_ligand, pos_protein, pos_ligand, batch_protein, batch_ligand, protein_id=None):
+def compose_context(h_protein, h_ligand, pos_protein, pos_ligand, batch_protein, batch_ligand):
     batch_ctx = torch.cat([batch_protein, batch_ligand], dim=0)
     # The sort must be stable. An unstable sort reorders atoms within a graph arbitrarily,
     # which breaks runs that hold the ligand atom types fixed.
@@ -137,22 +137,12 @@ def compose_context(h_protein, h_ligand, pos_protein, pos_ligand, batch_protein,
 
     # mask_protein: True for protein atoms, False for ligand atoms
     mask_protein = ~mask_ligand
-    
-    # Align protein_id with other tensors
-    # Fill ligand atoms with -1 as placeholder ID
-    if protein_id is not None:
-        ligand_dummy_ids = torch.full_like(batch_ligand, fill_value=-1)
-        protein_id_ctx = torch.cat([protein_id, ligand_dummy_ids], dim=0)[sort_idx]
-    else:
-        # If protein_id is None, set all atoms to same ID
-        protein_id_ctx = None
 
     batch_ctx = batch_ctx[sort_idx]
     h_ctx = torch.cat([h_protein, h_ligand], dim=0)[sort_idx]  # (N_protein+N_ligand, H)
     pos_ctx = torch.cat([pos_protein, pos_ligand], dim=0)[sort_idx]  # (N_protein+N_ligand, 3)
 
-    # Always six values. protein_id_ctx is None when no protein_id was passed in.
-    return h_ctx, pos_ctx, batch_ctx, mask_ligand, mask_protein, protein_id_ctx
+    return h_ctx, pos_ctx, batch_ctx, mask_ligand, mask_protein
 
 class ShiftedSoftplus(nn.Module):
     def __init__(self):
@@ -181,333 +171,12 @@ def hybrid_edge_connection(ligand_pos, protein_pos, k, ligand_index, protein_ind
     pl_edge_index = pl_edge_index.view(2, -1)
     return ll_edge_index, pl_edge_index
 
-def mask_cross_protein_edges(edge_index, protein_id, mask_ligand, debug=False):
-    """
-    Mask edges between atoms from different proteins to prevent cross-protein information flow.
-    Selectivity learning needs the on-target and off-target proteins kept isolated.
-    
-    Args:
-        edge_index: [2, num_edges] edge tensor
-        protein_id: protein ID for each atom (-1 for ligands)
-        mask_ligand: boolean mask for ligand atoms
-        debug: If True, print detailed edge type analysis
-    Returns:
-        Filtered edge_index with cross-protein edges removed
-    """
-    src, dst = edge_index
-    src_protein_id = protein_id[src]
-    dst_protein_id = protein_id[dst]
-    src_is_ligand = mask_ligand[src]
-    dst_is_ligand = mask_ligand[dst]
-    
-    if debug:
-        # Analyze edge types before masking
-        ll_edges = (src_is_ligand & dst_is_ligand).sum().item()
-        pl_edges = ((src_is_ligand & ~dst_is_ligand) | (~src_is_ligand & dst_is_ligand)).sum().item()
-        pp_same_edges = (~src_is_ligand & ~dst_is_ligand & (src_protein_id == dst_protein_id)).sum().item()
-        pp_cross_edges = (~src_is_ligand & ~dst_is_ligand & (src_protein_id != dst_protein_id)).sum().item()
-        
-    
-    # Keep edges if:
-    # 1. At least one endpoint is a ligand (ligand-protein or ligand-ligand edges)
-    # 2. Both endpoints are from the same protein (intra-protein edges)
-    keep_mask = (src_is_ligand | dst_is_ligand) | (src_protein_id == dst_protein_id)
-    
-    return edge_index[:, keep_mask]
-
-def batch_hybrid_edge_connection_selective(x, k, mask_ligand, batch, protein_id, add_p_index=False, debug=False):
-    """
-    Edge connection that never creates a cross-protein edge in the first place, instead of
-    building all edges and masking them afterwards.
-    
-    Args:
-        x: node positions
-        k: number of nearest neighbors
-        mask_ligand: boolean mask for ligand atoms
-        batch: batch indices
-        protein_id: protein ID for each atom (-1 for ligands)
-        add_p_index: if True, also create protein-protein edges
-        debug: if True, print debugging information
-    """
+def batch_hybrid_edge_connection(x, k, mask_ligand, batch, add_p_index=False):
+    """Per-graph ligand-ligand and protein-ligand edges, plus protein-protein edges when
+    add_p_index is set."""
     batch_size = batch.max().item() + 1
     batch_ll_edge_index, batch_pl_edge_index, batch_p_edge_index = [], [], []
-    
-    if debug:
-        total_ligand_atoms = (mask_ligand == 1).sum().item()
-        total_protein_atoms = (mask_ligand == 0).sum().item()
-        unique_proteins = torch.unique(protein_id[protein_id >= 0])
-        num_proteins = len(unique_proteins)
-        
-    
-    with torch.no_grad():
-        for i in range(batch_size):
-            batch_mask = (batch == i)
-            ligand_index = (batch_mask & (mask_ligand == 1)).nonzero()[:, 0]
-            protein_index = (batch_mask & (mask_ligand == 0)).nonzero()[:, 0]
-            
-            # 1. Ligand-Ligand edges (fully connected)
-            if len(ligand_index) > 1:
-                dst = torch.repeat_interleave(ligand_index, len(ligand_index))
-                src = ligand_index.repeat(len(ligand_index))
-                mask = dst != src
-                dst, src = dst[mask], src[mask]
-                ll_edge_index = torch.stack([src, dst])
-                batch_ll_edge_index.append(ll_edge_index)
-            else:
-                batch_ll_edge_index.append(torch.zeros((2, 0), dtype=torch.long, device=x.device))
-            
-            # 2. Protein-Ligand edges (knn for each ligand to all proteins)
-            if len(ligand_index) > 0 and len(protein_index) > 0:
-                ligand_pos = x[ligand_index]
-                protein_pos = x[protein_index]
-                
-                # Same distance computation as hybrid_edge_connection above
-                ligand_protein_pos_dist = torch.unsqueeze(ligand_pos, 1) - torch.unsqueeze(protein_pos, 0)
-                ligand_protein_pos_dist = torch.norm(ligand_protein_pos_dist, p=2, dim=-1)
-                knn_p_idx = torch.topk(ligand_protein_pos_dist, k=min(k, len(protein_index)), largest=False, dim=1).indices
-                knn_p_idx = protein_index[knn_p_idx]
-                knn_l_idx = torch.unsqueeze(ligand_index, 1)
-                knn_l_idx = knn_l_idx.repeat(1, min(k, len(protein_index)))
-                pl_edge_index = torch.stack([knn_p_idx, knn_l_idx], dim=0)
-                pl_edge_index = pl_edge_index.view(2, -1)
-                batch_pl_edge_index.append(pl_edge_index)
-            else:
-                batch_pl_edge_index.append(torch.zeros((2, 0), dtype=torch.long, device=x.device))
-            
-            # 3. Additional edges from knn_graph - exactly replicating original method but with filtering
-            if add_p_index:
-                ligand_pos = x[ligand_index] if len(ligand_index) > 0 else torch.zeros((0, 3), device=x.device)
-                protein_pos = x[protein_index] if len(protein_index) > 0 else torch.zeros((0, 3), device=x.device)
-                
-                if len(protein_index) > 0:
-                    all_pos = torch.cat([protein_pos, ligand_pos], 0)
-                    p_edge_index = knn_graph(all_pos, k=k, flow='source_to_target')
-                    p_edge_index = p_edge_index[:, p_edge_index[1] < len(protein_pos)]
-                    p_src, p_dst = p_edge_index
-                    all_index = torch.cat([protein_index, ligand_index], 0)
-                    p_edge_index = torch.stack([all_index[p_src], all_index[p_dst]], 0)
-                    
-                    # Apply selective filtering: keep only edges where both endpoints are from same protein
-                    # or one endpoint is ligand (but dst must be protein due to earlier filtering)
-                    src_protein_id = protein_id[p_edge_index[0]]
-                    dst_protein_id = protein_id[p_edge_index[1]]
-                    src_is_ligand = mask_ligand[p_edge_index[0]]
-                    
-                    # Keep edges if: 1) src is ligand (ligand->protein) or 2) both are same protein
-                    keep_mask = src_is_ligand | (src_protein_id == dst_protein_id)
-                    p_edge_index = p_edge_index[:, keep_mask]
-                    
-                    batch_p_edge_index.append(p_edge_index)
-                else:
-                    batch_p_edge_index.append(torch.zeros((2, 0), dtype=torch.long, device=x.device))
-            else:
-                batch_p_edge_index.append(torch.zeros((2, 0), dtype=torch.long, device=x.device))
 
-    if debug:
-        total_ll_edges = sum([ll.shape[1] for ll in batch_ll_edge_index])
-        total_pl_edges = sum([pl.shape[1] for pl in batch_pl_edge_index])
-        total_p_edges = sum([p.shape[1] for p in batch_p_edge_index]) if add_p_index else 0
-        
-
-    # Combine all edges
-    if add_p_index:
-        edge_index = [torch.cat([ll, pl, p], -1) for ll, pl, p in zip(
-            batch_ll_edge_index, batch_pl_edge_index, batch_p_edge_index)]
-    else:
-        edge_index = [torch.cat([ll, pl], -1) for ll, pl in zip(batch_ll_edge_index, batch_pl_edge_index)]
-    
-    edge_index = torch.cat(edge_index, -1)
-    
-    return edge_index
-
-def selective_knn_graph(x, k, batch, protein_id=None, mask_ligand=None, flow='source_to_target', debug=False):
-    """
-    KNN graph generation with protein ID-based filtering to prevent cross-protein edges.
-    
-    Args:
-        x: node positions [N, 3]
-        k: number of nearest neighbors
-        batch: batch indices [N]
-        protein_id: protein ID for each node (-1 for ligands) [N]
-        mask_ligand: boolean mask for ligand nodes [N]
-        flow: edge direction ('source_to_target' or 'target_to_source')
-        debug: if True, print debugging information
-    
-    Returns:
-        edge_index: [2, num_edges] edge tensor with cross-protein edges filtered out
-    """
-    if protein_id is None or mask_ligand is None:
-        # No protein filtering requested, so use the unfiltered knn graph
-        return knn_graph(x, k=k, batch=batch, flow=flow)
-    
-    batch_size = batch.max().item() + 1
-    edge_list = []
-    
-    if debug:
-        unique_proteins = torch.unique(protein_id[protein_id >= 0])
-    
-    for b_idx in range(batch_size):
-        batch_mask = (batch == b_idx)
-        batch_x = x[batch_mask]
-        batch_protein_id = protein_id[batch_mask]
-        batch_mask_ligand = mask_ligand[batch_mask]
-        batch_node_indices = torch.where(batch_mask)[0]
-        
-        if len(batch_x) == 0:
-            continue
-            
-        # Generate KNN edges for this batch
-        if len(batch_x) <= k:
-            # If fewer nodes than k, connect to all others
-            n_nodes = len(batch_x)
-            src_indices = torch.arange(n_nodes, device=x.device).repeat(n_nodes)
-            dst_indices = torch.arange(n_nodes, device=x.device).repeat_interleave(n_nodes)
-            # Remove self-loops
-            mask_no_self = src_indices != dst_indices
-            src_indices = src_indices[mask_no_self]
-            dst_indices = dst_indices[mask_no_self]
-        else:
-            # Use KNN
-            batch_edge_index = knn_graph(batch_x, k=k, flow=flow)
-            src_indices, dst_indices = batch_edge_index
-        
-        if len(src_indices) == 0:
-            continue
-            
-        # Apply protein ID filtering
-        src_protein_ids = batch_protein_id[src_indices]
-        dst_protein_ids = batch_protein_id[dst_indices]
-        src_is_ligand = batch_mask_ligand[src_indices]
-        dst_is_ligand = batch_mask_ligand[dst_indices]
-        
-        # Keep edges if:
-        # 1. At least one endpoint is a ligand (ligand can connect to any protein)
-        # 2. Both endpoints are from the same protein
-        keep_mask = (src_is_ligand | dst_is_ligand) | (src_protein_ids == dst_protein_ids)
-        
-        if keep_mask.sum() > 0:
-            filtered_src = src_indices[keep_mask]
-            filtered_dst = dst_indices[keep_mask]
-            
-            # Map back to global indices
-            global_src = batch_node_indices[filtered_src]
-            global_dst = batch_node_indices[filtered_dst]
-            
-            batch_edges = torch.stack([global_src, global_dst], dim=0)
-            edge_list.append(batch_edges)
-    
-    if len(edge_list) == 0:
-        return torch.zeros((2, 0), dtype=torch.long, device=x.device)
-    
-    edge_index = torch.cat(edge_list, dim=1)
-    
-    if debug:
-        pass
-        
-    return edge_index
-
-def selective_radius_graph(x, r, batch, protein_id=None, mask_ligand=None, flow='source_to_target', max_num_neighbors=32, debug=False):
-    """
-    Radius graph generation with protein ID-based filtering to prevent cross-protein edges.
-    
-    Args:
-        x: node positions [N, 3]
-        r: radius threshold
-        batch: batch indices [N]
-        protein_id: protein ID for each node (-1 for ligands) [N]
-        mask_ligand: boolean mask for ligand nodes [N]
-        flow: edge direction ('source_to_target' or 'target_to_source')
-        max_num_neighbors: maximum number of neighbors per node
-        debug: if True, print debugging information
-    
-    Returns:
-        edge_index: [2, num_edges] edge tensor with cross-protein edges filtered out
-    """
-    if protein_id is None or mask_ligand is None:
-        # No protein filtering requested, so use the unfiltered radius graph
-        return radius_graph(x, r=r, batch=batch, flow=flow, max_num_neighbors=max_num_neighbors)
-    
-    batch_size = batch.max().item() + 1
-    edge_list = []
-    
-    if debug:
-        unique_proteins = torch.unique(protein_id[protein_id >= 0])
-    
-    for b_idx in range(batch_size):
-        batch_mask = (batch == b_idx)
-        batch_x = x[batch_mask]
-        batch_protein_id = protein_id[batch_mask]
-        batch_mask_ligand = mask_ligand[batch_mask]
-        batch_node_indices = torch.where(batch_mask)[0]
-        
-        if len(batch_x) == 0:
-            continue
-            
-        # Generate radius-based edges for this batch
-        batch_edge_index = radius_graph(batch_x, r=r, flow=flow, max_num_neighbors=max_num_neighbors)
-        
-        if batch_edge_index.shape[1] == 0:
-            continue
-            
-        src_indices, dst_indices = batch_edge_index
-        
-        # Apply protein ID filtering
-        src_protein_ids = batch_protein_id[src_indices]
-        dst_protein_ids = batch_protein_id[dst_indices]
-        src_is_ligand = batch_mask_ligand[src_indices]
-        dst_is_ligand = batch_mask_ligand[dst_indices]
-        
-        # Keep edges if:
-        # 1. At least one endpoint is a ligand (ligand can connect to any protein)
-        # 2. Both endpoints are from the same protein
-        keep_mask = (src_is_ligand | dst_is_ligand) | (src_protein_ids == dst_protein_ids)
-        
-        if keep_mask.sum() > 0:
-            filtered_src = src_indices[keep_mask]
-            filtered_dst = dst_indices[keep_mask]
-            
-            # Map back to global indices
-            global_src = batch_node_indices[filtered_src]
-            global_dst = batch_node_indices[filtered_dst]
-            
-            batch_edges = torch.stack([global_src, global_dst], dim=0)
-            edge_list.append(batch_edges)
-    
-    if len(edge_list) == 0:
-        return torch.zeros((2, 0), dtype=torch.long, device=x.device)
-    
-    edge_index = torch.cat(edge_list, dim=1)
-    
-    if debug:
-        pass
-        
-    return edge_index
-
-def batch_hybrid_edge_connection(x, k, mask_ligand, batch, add_p_index=False, protein_id=None, mask_cross_protein=False, debug=False):
-    """
-    Create edge connections with optional cross-protein masking for selectivity learning.
-    
-    Args:
-        mask_cross_protein: If True, mask edges between different proteins
-        protein_id: Protein ID tensor (needed for cross-protein masking)
-        debug: If True, print detailed debugging information
-    """
-    batch_size = batch.max().item() + 1
-    batch_ll_edge_index, batch_pl_edge_index, batch_p_edge_index = [], [], []
-    
-    if debug:
-        # Count atoms by type for debugging
-        total_ligand_atoms = (mask_ligand == 1).sum().item()
-        total_protein_atoms = (mask_ligand == 0).sum().item()
-        
-        if protein_id is not None:
-            unique_proteins = torch.unique(protein_id[protein_id >= 0])
-            num_proteins = len(unique_proteins)
-            
-            # Count atoms per protein
-            for pid in unique_proteins:
-                protein_atom_count = (protein_id == pid).sum().item()
-    
     with torch.no_grad():
         for i in range(batch_size):
             ligand_index = ((batch == i) & (mask_ligand == 1)).nonzero()[:, 0]
@@ -526,31 +195,10 @@ def batch_hybrid_edge_connection(x, k, mask_ligand, batch, add_p_index=False, pr
                 p_edge_index = torch.stack([all_index[p_src], all_index[p_dst]], 0)
                 batch_p_edge_index.append(p_edge_index)
 
-    if debug:
-        # Count edges by type
-        total_ll_edges = sum([ll.shape[1] for ll in batch_ll_edge_index])
-        total_pl_edges = sum([pl.shape[1] for pl in batch_pl_edge_index])
-        total_p_edges = sum([p.shape[1] for p in batch_p_edge_index]) if add_p_index else 0
-        
-
     # Combine all edges
     if add_p_index:
         edge_index = [torch.cat([ll, pl, p], -1) for ll, pl, p in zip(
             batch_ll_edge_index, batch_pl_edge_index, batch_p_edge_index)]
     else:
         edge_index = [torch.cat([ll, pl], -1) for ll, pl in zip(batch_ll_edge_index, batch_pl_edge_index)]
-    edge_index = torch.cat(edge_index, -1)
-    
-    if debug:
-        pass
-    
-    # Apply cross-protein masking if requested
-    if mask_cross_protein and protein_id is not None:
-        original_count = edge_index.shape[1]
-        edge_index = mask_cross_protein_edges(edge_index, protein_id, mask_ligand, debug)
-        masked_count = edge_index.shape[1]
-        removed_count = original_count - masked_count
-        if debug:
-            pass
-    
-    return edge_index
+    return torch.cat(edge_index, -1)

@@ -238,25 +238,3 @@ class NormalizeVina(object):
         return data
 
 
-class NormalizeVinaAndPair(object):
-
-    def __init__(self, mode='multipro'):
-        super().__init__()
-        self.mode = mode
-        if mode == 'multipro':
-            self.max_v = 0
-            self.min_v = -16
-        else:
-            raise ValueError
-    
-    def _trans(self, vina_score):
-        if self.mode == 'multipro':
-            return (self.max_v - np.clip(vina_score, self.min_v, self.max_v)) / (self.max_v - self.min_v)
-        else:
-            raise ValueError
-
-    def __call__(self,  data: ProteinLigandData):
-        data.affinity = self._trans(data.affinity)
-        data.on_target_affinity = self._trans(data.on_target_affinity)
-        data.off_target_affinities = self._trans(data.off_target_affinities)
-        return data

@@ -5,7 +5,9 @@ import torch.nn.functional as F
 from torch_geometric.nn import radius_graph, knn_graph
 from torch_scatter import scatter_softmax, scatter_sum
 
-from gated_energy_diffusion.models.common import GaussianSmearing, MLP, batch_hybrid_edge_connection, batch_hybrid_edge_connection_selective, selective_knn_graph, selective_radius_graph, outer_product
+from gated_energy_diffusion.models.common import (GaussianSmearing, MLP,
+                                                  batch_hybrid_edge_connection,
+                                                  outer_product)
 
 
 class BaseX2HAttLayer(nn.Module):
@@ -274,44 +276,17 @@ class UniTransformerO2TwoUpdateGeneral(nn.Module):
             base_block.append(layer)
         return nn.ModuleList(base_block)
 
-    def _connect_edge(self, x, mask_ligand, batch, protein_id=None, mask_cross_protein=False, debug=False):
-        # Determine if we should use selective (protein ID-based) edge generation
-        use_selective = protein_id is not None and mask_ligand is not None
-        
+    def _connect_edge(self, x, mask_ligand, batch):
         if self.cutoff_mode == 'radius':
-            if use_selective:
-                edge_index = selective_radius_graph(
-                    x, r=self.r, batch=batch, protein_id=protein_id, 
-                    mask_ligand=mask_ligand, flow='source_to_target', debug=debug)
-            else:
-                edge_index = radius_graph(x, r=self.r, batch=batch, flow='source_to_target')
-        elif self.cutoff_mode == 'knn':
-            if use_selective:
-                edge_index = selective_knn_graph(
-                    x, k=self.k, batch=batch, protein_id=protein_id,
-                    mask_ligand=mask_ligand, flow='source_to_target', debug=debug)
-            else:
-                # Check for empty batch tensor to avoid runtime error
-                if batch is None or batch.numel() == 0:
-                    print(f"Warning: Empty or None batch tensor in knn_graph. batch: {batch}, x.shape: {x.shape}")
-                    # Create a dummy edge index for empty batch
-                    edge_index = torch.empty((2, 0), dtype=torch.long, device=x.device)
-                else:
-                    edge_index = knn_graph(x, k=self.k, batch=batch, flow='source_to_target')
-        elif self.cutoff_mode == 'hybrid':
-            # Use efficient selective edge creation if protein_id is provided
-            if use_selective:
-                edge_index = batch_hybrid_edge_connection_selective(
-                    x, k=self.k, mask_ligand=mask_ligand, batch=batch, 
-                    protein_id=protein_id, add_p_index=True, debug=debug)
-            else:
-                # Fallback to original method if protein_id is not available
-                edge_index = batch_hybrid_edge_connection(
-                    x, k=self.k, mask_ligand=mask_ligand, batch=batch, add_p_index=True,
-                    protein_id=protein_id, mask_cross_protein=mask_cross_protein, debug=debug)
-        else:
-            raise ValueError(f'Not supported cutoff mode: {self.cutoff_mode}')
-        return edge_index
+            return radius_graph(x, r=self.r, batch=batch, flow='source_to_target')
+        if self.cutoff_mode == 'knn':
+            if batch is None or batch.numel() == 0:
+                return torch.empty((2, 0), dtype=torch.long, device=x.device)
+            return knn_graph(x, k=self.k, batch=batch, flow='source_to_target')
+        if self.cutoff_mode == 'hybrid':
+            return batch_hybrid_edge_connection(
+                x, k=self.k, mask_ligand=mask_ligand, batch=batch, add_p_index=True)
+        raise ValueError(f'Not supported cutoff mode: {self.cutoff_mode}')
 
     @staticmethod
     def _build_edge_type(edge_index, mask_ligand):
@@ -326,16 +301,13 @@ class UniTransformerO2TwoUpdateGeneral(nn.Module):
         edge_type = F.one_hot(edge_type, num_classes=4)
         return edge_type
 
-    def forward(self, h, x, mask_ligand, batch, protein_id=None, return_all=False, fix_x=False, mask_cross_protein=False):
+    def forward(self, h, x, mask_ligand, batch, return_all=False, fix_x=False):
 
         all_x = [x]
         all_h = [h]
 
         for b_idx in range(self.num_blocks):
-            # Only print debug info for first block and if debug flag is set
-            debug_edges = (b_idx == 0) and getattr(self, '_debug_edges', False)
-            
-            edge_index = self._connect_edge(x, mask_ligand, batch, protein_id, mask_cross_protein, debug_edges)
+            edge_index = self._connect_edge(x, mask_ligand, batch)
             src, dst = edge_index
 
             # edge type (dim: 4)

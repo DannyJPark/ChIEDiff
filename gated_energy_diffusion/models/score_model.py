@@ -385,7 +385,7 @@ class ScorePosNet3D(nn.Module):
             init_ligand_h = torch.cat([init_ligand_h, torch.ones(len(init_ligand_h), 1).to(h_protein)], -1)
 
         # Compose protein-ligand complex graph
-        h_all, pos_all, batch_all, mask_ligand, mask_protein, _ = compose_context(
+        h_all, pos_all, batch_all, mask_ligand, mask_protein = compose_context(
             h_protein=h_protein,
             h_ligand=init_ligand_h,
             pos_protein=protein_pos,
