@@ -78,7 +78,7 @@ def vina_meeko_self(crystal, receptor_pdbqt, ref_centroid, out_sdf):
     aff=float(v.energies(n_poses=1)[0][0])
     back=RDKitMolCreate.from_pdbqt_mol(PDBQTMolecule(v.poses(n_poses=1),skip_typing=True))[0]
     # record the affinity on the pose, so the REFERENCE row can carry an AutoDock Vina column in
-    # results/comparison/f2_pose_fidelity/redock_comparison.txt exactly as it carries smina-Vinardo and gnina.
+    # the redocking comparison exactly as it carries smina-Vinardo and gnina.
     # The SD tag name matches smina/gnina ('minimizedAffinity') so one reader handles all three.
     back.SetProp('minimizedAffinity', f'{aff:.5f}')
     w=Chem.SDWriter(out_sdf); w.write(back); w.close()

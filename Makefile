@@ -1,51 +1,31 @@
-# Front door. `make` with no target prints this list.
-#
-# The tiers differ enormously in cost, so they are separate targets rather than one
-# pipeline: `tables` is a minute on a laptop, `remeasure` is days across four conda
-# environments, `train` is over a million iterations on a GPU.
+# `make` with no target prints this list.
 
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help tables tables-dry remeasure measure sample verify check check-release clean
+.PHONY: help install archive measure clean
 
 help:  ## show this list
 	@grep -hE '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) \
-	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
+	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2}'
 	@echo
-	@echo "  Tier 1  make tables      reproduce every table from the shipped CSVs (~1 min, CPU)"
-	@echo "  Tier 2  bin/measure.sh then bin/remeasure.sh    re-measure locally (hours-days)"
-	@echo "  Tier 3  python bin/train.py --config configs/train.yml --tag myrun   (days, 1 GPU)"
+	@echo "  Reproduce the tables   jupyter notebook reproduction.ipynb   (minutes, CPU)"
+	@echo "  Train                  python bin/train.py --config configs/train.yml --tag myrun"
+	@echo "  Sample                 bash bin/sample_local.sh --ckpt <weights> --pockets 0-4"
 	@echo
-	@echo "  No cluster needed. slurm/ holds optional launchers; see docs/reproduce.md."
+	@echo "  Read docs/reproduce.md first. One GPU is enough and no cluster is needed."
 
-tables:  ## shipped CSVs -> all 22 generated tables
-	bash bin/make_tables.sh
+install:  ## create the training environment and install the package into it
+	conda env create -f envs/environment-train.yml
+	@echo "Then: conda activate ged-train && pip install -e ."
+	@echo "The evaluation environments are separate; see envs/README.md."
 
-tables-dry:  ## render the tables without writing them into the LaTeX targets
-	bash bin/make_tables.sh --dry
+archive:  ## download the weights, molecules, receptors and training data
+	python tools/download_archive.py --doi 10.5281/zenodo.23029439
 
-remeasure:  ## raw measurement outputs -> the 19 source CSVs -> tables
-	bash bin/remeasure.sh
+measure:  ## measure the archived molecules on five pockets
+	bash bin/measure.sh --pt archive/chiediff_generated_molecules.pt --tag chiediff --pockets 0-4
 
-measure:  ## generated samples -> docking / PLIP / PoseCheck / PoseBusters (submits to Slurm)
-	bash bin/measure.sh
-
-verify:  ## equivalence controls against the original implementation (submits to Slurm)
-	@echo "Submitting the equivalence controls. These MUST run on a compute node:"
-	@echo "  A  loss and gradient equivalence, bitwise, over seven timesteps"
-	@echo "  A' 50-iteration end-to-end training comparison"
-	@echo "  B  sampling equivalence, bitwise, at OMP_NUM_THREADS=1"
-	@echo "  C  the chemistry-gate assertion fires when the transform is absent"
-	@echo "  D  per-term energy linearity"
-	sbatch slurm/verify_equivalence.sbatch
-
-check:  ## every gate, no regeneration
-	bash bin/check.sh
-
-check-release:  ## as check, but also fails on unassigned DOIs and placeholder URLs
-	bash bin/check.sh --release
-
-clean:  ## remove LaTeX build products from the table harness
-	rm -f tables/*.aux tables/*.log tables/*.out tables/*.toc \
-	      tables/*.fls tables/*.fdb_latexmk tables/*.synctex.gz
+clean:  ## remove Python build products and notebook state
+	rm -rf build dist *.egg-info .ipynb_checkpoints
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +

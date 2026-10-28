@@ -176,35 +176,33 @@ class SinusoidalPosEmb(nn.Module):
 class ScorePosNet3D(nn.Module):
     """Diffusion score network with a single binding-affinity head.
 
-    The protein-ligand complex graph (WITH interaction) is refined by the equivariant
-    transformer; the ligand atom embeddings are read out by `v_inference` for the atom
-    types and by `expert_pred_head1` for a per-atom affinity that is pooled with
-    scatter_mean over each ligand.
+    The protein-ligand complex graph is refined by the equivariant transformer. The ligand
+    atom embeddings are read out by `v_inference` for the atom types and by
+    `expert_pred_head1` for a per-atom affinity that is pooled with scatter_mean over each
+    ligand.
     """
 
     def __init__(self, config, protein_atom_feature_dim, ligand_atom_feature_dim):
         super().__init__()
-        # Config guards. Written as raises rather than asserts on purpose: `python -O`
-        # strips asserts, and the failure these prevent is silent -- a stale config from the
-        # development tree would train a DIFFERENT model while reporting success.
+        # Config guards are raises rather than asserts, because `python -O` strips asserts and
+        # each of these keys would otherwise build a model that does not match the config.
         _mode = getattr(config, 'vdw_loss_mode', 'vina')
         if _mode != 'vina':
             raise ValueError(
                 "the only interaction loss implemented here is the chemistry-gated Vina "
-                f"energy; vdw_loss_mode={_mode!r} selects a loss that is not part of this "
-                "release")
+                f"energy, so vdw_loss_mode={_mode!r} cannot be honoured. Set it to 'vina' or "
+                "drop the key.")
         if getattr(config, 'use_dual_head_sam_pl', False):
             raise ValueError(
-                "use_dual_head_sam_pl=True requests the dual-head architecture, which is "
-                "not part of this release. Without this guard the run would silently train "
-                "a single head instead, producing a model that is not what the config asks "
-                "for. Use configs/train.yml, which omits the key.")
+                "use_dual_head_sam_pl=True requests a dual-head architecture, which this model "
+                "does not implement. Without this guard a single head would be trained instead, "
+                "which is not what the config asks for. Use configs/train.yml, which omits the "
+                "key.")
         if getattr(config, 'vina_type_gating', True) is not True:
             raise ValueError(
-                "vina_type_gating=False makes the hydrophobic and hydrogen-bond terms fire "
-                "on every pair instead of switching them off. That ungated form is not the "
-                "published model. To ablate a channel, set vina_hydro_scale or "
-                "vina_hbond_scale to 0 instead.")
+                "vina_type_gating=False makes the hydrophobic and hydrogen-bond terms fire on "
+                "every pair instead of switching them off, which is a different energy. To "
+                "ablate a channel, set vina_hydro_scale or vina_hbond_scale to 0 instead.")
         self.config = config
 
         # === Diffusion schedule ===
@@ -215,18 +213,20 @@ class ScorePosNet3D(nn.Module):
         self.use_classifier_guide = config.use_classifier_guide
 
         # === Chemistry-gated intermolecular interaction energy ===
-        # The raw energy is computed in get_diffusion_loss; the base weight and the curriculum
+        # The raw energy is computed in get_diffusion_loss. The base weight and the curriculum
         # ramp (it / vdw_ramp_iters) are applied in the train loop.
-        # Gate the hydrophobic / H-bond terms by atom type (the real AutoDock Vina rule). The
-        # steric terms (gauss1/gauss2/repulsion) stay ungated. False -> apply both terms to all
-        # pairs, which is not what the released model was trained with.
+        # The hydrophobic and H-bond terms are gated by atom type, following AutoDock Vina's own
+        # rule. The steric terms (gauss1/gauss2/repulsion) stay ungated. False applies both
+        # gated terms to every pair, which is a different energy and is rejected above.
         self.vina_type_gating = getattr(config, 'vina_type_gating', True)
-        # Per-TERM ablation switches. They scale the three term GROUPS before the weighted sum, so
-        # a group set to 0.0 is removed exactly (its energy is identically zero, not merely small):
-        #   steric -> gauss1 + gauss2 + repulsion   (the "vdW" group: the gaussians + the quadratic)
-        #   hydro  -> hydrophobic                   hbond -> hbonding
-        # 1.0 everywhere == the unmodified 5-term Vina energy, i.e. these keys are a no-op for a
-        # config that does not set them (the released model reproduces bit-identically).
+        # Per-term ablation switches. They scale the three term groups before the weighted sum,
+        # so a group set to 0.0 is removed exactly, its energy being identically zero rather
+        # than merely small.
+        #   steric -> gauss1 + gauss2 + repulsion (the two Gaussians and the quadratic)
+        #   hydro  -> hydrophobic
+        #   hbond  -> hbonding
+        # 1.0 everywhere is the unmodified five-term Vina energy, so these keys are a no-op for
+        # a config that does not set them.
         self.vina_steric_scale = float(getattr(config, 'vina_steric_scale', 1.0))
         self.vina_hydro_scale = float(getattr(config, 'vina_hydro_scale', 1.0))
         self.vina_hbond_scale = float(getattr(config, 'vina_hbond_scale', 1.0))
@@ -525,9 +525,9 @@ class ScorePosNet3D(nn.Module):
         loss_v = scatter_mean(mask * decoder_nll_v + (1. - mask) * kl_v, batch, dim=0)
         return loss_v
 
-    # Constant lookup tables that used to be saved into the state_dict. Older checkpoints still
-    # carry them (with the pre-fix Bondi radii, and with element-level gating tables this code no
-    # longer builds at all), so drop them on load and let __init__ rebuild what it needs.
+    # Constant lookup tables that some checkpoints carry inside their state_dict, holding Bondi
+    # radii and element-level gating tables that this code no longer builds. They are dropped on
+    # load so that __init__ rebuilds the tables it needs.
     _LEGACY_CONST_BUFFERS = ('_vina_radii', '_vina_ligand_Z', '_vina_protein_Z',
                              '_vina_is_hbond', '_vina_is_hydro')
 
@@ -540,12 +540,12 @@ class ScorePosNet3D(nn.Module):
         """Build an atomic-number-indexed vdW-radius table + ligand/protein index->Z LUTs for the
         interaction energy.
 
-        Radii are AutoDock Vina's `xs_radius` (src/lib/atom_constants.h: C 1.9, N 1.8, O 1.7,
-        S 2.0, P 2.1, F 1.5, Cl 1.8, Br 2.0, I 2.2) -- NOT Bondi radii. Every Vina term is a
-        function of the surface distance d = r - (R_i + R_j), so the radii set where the Gaussians
-        and the H-bond/hydrophobic ramps sit: with Vina's radii an N...O pair has R_i+R_j = 3.5 A,
-        putting the H-bond ramp (active for d in [-0.7, 0]) at r in [2.8, 3.5] A -- the real
-        H-bond range."""
+        Radii are AutoDock Vina's `xs_radius` (src/lib/atom_constants.h, giving C 1.9, N 1.8,
+        O 1.7, S 2.0, P 2.1, F 1.5, Cl 1.8, Br 2.0, I 2.2), not Bondi radii. Every Vina term is
+        a function of the surface distance d = r - (R_i + R_j), so the radii set where the
+        Gaussians and the H-bond and hydrophobic ramps sit. With Vina's radii an N...O pair has
+        R_i + R_j = 3.5 A, putting the H-bond ramp (active for d in [-0.7, 0]) at r in
+        [2.8, 3.5] A, which is the real H-bond range."""
         from gated_energy_diffusion.utils import transforms as _t  # lazy import: avoids circular import at module load
         from gated_energy_diffusion.utils.vina_rules import VINA_WEIGHT
         from gated_energy_diffusion.utils.vina_types import XS_RADIUS_BY_Z, XS_RADIUS_DEFAULT
@@ -554,9 +554,9 @@ class ScorePosNet3D(nn.Module):
         radii = torch.full((ZMAX,), XS_RADIUS_DEFAULT)
         for z, r in XS_RADIUS_BY_Z.items():
             radii[z] = r
-        # persistent=False: these are constants, not learned state. Keeping them out of the
-        # state_dict stops a checkpoint saved before the Bondi->xs_radius fix from silently
-        # restoring the old radii (see _load_from_state_dict below).
+        # persistent=False because these are constants, not learned state. Keeping them out of
+        # the state_dict means a checkpoint carrying older radii cannot restore them over the
+        # table built here (see _load_from_state_dict above).
         self.register_buffer('_vina_radii', radii, persistent=False)
 
         nc = self.num_classes
@@ -572,9 +572,9 @@ class ScorePosNet3D(nn.Module):
         # protein element one-hot order in protein_v[:, :6] (FeaturizeProteinAtom): H,C,N,O,S,Se
         self.register_buffer('_vina_protein_Z', torch.tensor([1, 6, 7, 8, 16, 34], dtype=torch.long), persistent=False)
         # Per-term ablation scale, aligned with VINA_WEIGHT's term order
-        # [gauss1, gauss2, repulsion, hydrophobic, hbonding]. persistent=False keeps it out of the
-        # state_dict, so a checkpoint written before this patch still loads without a missing key
-        # (and an ablation checkpoint never silently carries its scales into a different config).
+        # [gauss1, gauss2, repulsion, hydrophobic, hbonding]. persistent=False keeps it out of
+        # the state_dict, so a checkpoint that does not contain it still loads, and an ablation
+        # checkpoint does not carry its scales into a different config.
         self.register_buffer('_vina_term_scale', torch.tensor(
             [self.vina_steric_scale, self.vina_steric_scale, self.vina_steric_scale,
              self.vina_hydro_scale, self.vina_hbond_scale], dtype=torch.float32), persistent=False)
@@ -589,28 +589,30 @@ class ScorePosNet3D(nn.Module):
 
     def _compute_vina_energy(self, pred_ligand_pos, protein_pos, batch_ligand, batch_protein,
                              num_graphs, ligand_v, protein_v, ligand_xs=None, protein_xs=None):
-        """AutoDock Vina empirical interaction ENERGY, reusing vina_rules.py's terms and weights
-        verbatim (correct SIGNS and magnitudes): VINA_WEIGHT = [gauss1 -0.0356, gauss2 -0.00516,
-        repulsion +0.840, hydrophobic -0.0351, hbonding -0.587], on the SURFACE distance
-        d = r - (R_i + R_j) with Vina's xs_radius.
+        """AutoDock Vina empirical interaction energy, reusing vina_rules.py's terms and weights
+        with their published signs and magnitudes, so VINA_WEIGHT = [gauss1 -0.0356,
+        gauss2 -0.00516, repulsion +0.840, hydrophobic -0.0351, hbonding -0.587], evaluated on
+        the surface distance d = r - (R_i + R_j) with Vina's xs_radius.
 
-        This is minimized DIRECTLY as an energy (single backward), not as a sum of forces
-        (sum dE/dd, double backward): the per-pair energy is bounded below (~ -0.66) so the
-        objective is well-posed, and the piecewise-linear hydrophobic/hbonding terms DO
-        contribute gradient (nonzero 1st derivative). Lower = more Vina-favorable pose; repulsion
-        (positive weight) penalizes clashes.
+        The energy itself is minimized with a single backward pass, rather than a sum of forces
+        (sum dE/dd) that would need a double backward. The per-pair energy is bounded below at
+        about -0.66, so the objective is well-posed, and the piecewise-linear hydrophobic and
+        hbonding terms still contribute gradient through their nonzero first derivative. Lower
+        values are more Vina-favorable poses, and repulsion carries a positive weight so it
+        penalizes clashes.
 
-        TYPE GATING (self.vina_type_gating) reproduces Vina's own rules from the per-atom XS flags
-        `ligand_xs` / `protein_xs` (N,3) = [is_hydrophobic, is_donor, is_acceptor] supplied by
-        transforms.FeaturizeVinaAtomTypes (see gated_energy_diffusion/utils/vina_types.py):
+        Type gating (self.vina_type_gating) reproduces Vina's own rules from the per-atom XS
+        flags `ligand_xs` and `protein_xs`, each (N, 3) holding
+        [is_hydrophobic, is_donor, is_acceptor] as supplied by transforms.FeaturizeVinaAtomTypes
+        (see gated_energy_diffusion/utils/vina_types.py):
 
             hydrophobic fires iff xs_is_hydrophobic(t1) && xs_is_hydrophobic(t2)
-                -> a carbon with NO heteroatom neighbour, or F/Cl/Br/I
+                -> a carbon with no heteroatom neighbour, or F/Cl/Br/I
             h-bond fires iff xs_h_bond_possible(t1, t2)
                 -> (donor(t1) && acceptor(t2)) || (donor(t2) && acceptor(t1))   [never A-A or D-D]
 
-        The steric gauss1/gauss2/repulsion terms apply to every pair. 8 A cutoff. Returns a scalar
-        (sum over ligand-protein pairs, averaged over graphs)."""
+        The steric gauss1/gauss2/repulsion terms apply to every pair, under an 8 A cutoff.
+        Returns a scalar, summed over ligand-protein pairs and averaged over graphs."""
         assert ligand_v is not None and protein_v is not None, \
             "the gated interaction energy requires ligand_v and protein_v"
         assert ligand_xs is not None and protein_xs is not None, (
@@ -619,7 +621,7 @@ class ScorePosNet3D(nn.Module):
         from gated_energy_diffusion.utils.vina_rules import (
             VINA_WEIGHT, gauss1, gauss2, repulsion, hydrophobic, hbonding)
         w = torch.tensor(VINA_WEIGHT, device=pred_ligand_pos.device, dtype=pred_ligand_pos.dtype)
-        # Per-term ablation: zero out whole term groups. The energy is LINEAR in these scales, so
+        # Per-term ablation: zero out whole term groups. The energy is linear in these scales, so
         # E(steric only) + E(hydro only) + E(hbond only) == E(full) exactly.
         w = w * self._vina_term_scale.to(device=w.device, dtype=w.dtype)
 
@@ -642,10 +644,10 @@ class ScorePosNet3D(nn.Module):
             d = r - (lig_r_all[lm].unsqueeze(1) + pro_r_all[pm].unsqueeze(0))             # surface distance
             hydro_t, hbond_t = hydrophobic(d), hbonding(d)
             if self.vina_type_gating:
-                # Gates and radii come from ground-truth chemistry (the XS flags and ligand_v as
-                # given by the data, as Vina does), so they are batch constants: this energy
-                # backpropagates into the predicted COORDINATES only and sends no gradient into
-                # the atom-type head.
+                # Gates and radii come from the reference chemistry, namely the XS flags and
+                # ligand_v as given by the data, which is what Vina uses. They are therefore
+                # batch constants, so this energy backpropagates into the predicted coordinates
+                # only and sends no gradient into the atom-type head.
                 m_hy = lig_hy[lm].unsqueeze(1) & pro_hy[pm].unsqueeze(0)
                 m_hb = (lig_do[lm].unsqueeze(1) & pro_ac[pm].unsqueeze(0)) | \
                        (lig_ac[lm].unsqueeze(1) & pro_do[pm].unsqueeze(0))    # xs_h_bond_possible
@@ -660,13 +662,13 @@ class ScorePosNet3D(nn.Module):
                          ligand_v=None, protein_v=None, ligand_xs=None, protein_xs=None):
         """
         Physics-informed interaction energy between the predicted ligand atom positions (x0) and
-        the fixed protein atoms: all 5 AutoDock Vina terms (gauss1, gauss2, repulsion,
-        hydrophobic, hbonding) on the SURFACE distance d = r - (R_i + R_j), weighted by
-        VINA_WEIGHT (correct signs AND magnitudes) and minimized directly as an energy (single
-        backward). Well-posed (bounded below); every term trains. Needs ligand_v/protein_v, and
-        ligand_xs/protein_xs for Vina's donor-acceptor / hydrophobic type gating (see
-        _compute_vina_energy). Returns a scalar (sum over all ligand-protein pairs, averaged over
-        graphs in the batch).
+        the fixed protein atoms. All five AutoDock Vina terms (gauss1, gauss2, repulsion,
+        hydrophobic, hbonding) are evaluated on the surface distance d = r - (R_i + R_j),
+        weighted by VINA_WEIGHT with its published signs and magnitudes, and minimized directly
+        as an energy with a single backward pass. The objective is bounded below and every term
+        contributes gradient. Requires ligand_v and protein_v, plus ligand_xs and protein_xs for
+        Vina's donor-acceptor and hydrophobic type gating (see _compute_vina_energy). Returns a
+        scalar, summed over all ligand-protein pairs and averaged over graphs in the batch.
         """
         return self._compute_vina_energy(
             pred_ligand_pos, protein_pos, batch_ligand, batch_protein, num_graphs, ligand_v, protein_v,
@@ -903,12 +905,12 @@ class ScorePosNet3D(nn.Module):
                         # Compute log(affinity) for position gradient
                         exp_on_log = exp_on.log()
 
-                        # TWO SEPARATE backward calls, on purpose. One tuple-backward over both
-                        # inputs traverses the graph in a different order and lands ~1e-7 away in
+                        # Two separate backward calls. A single tuple-backward over both inputs
+                        # traverses the graph in a different order and lands about 1e-7 away in
                         # float, which the 1000-step stochastic sampler amplifies into a visibly
                         # different molecule.
-                        # The two channels are deliberately asymmetric: the type gradient is
-                        # grad A_hat, the position gradient grad log A_hat.
+                        # The two channels are asymmetric. The atom-type gradient is grad A_hat
+                        # and the position gradient is grad log A_hat.
                         head1_v_grad = torch.autograd.grad(
                             exp_on.sum(), ligand_v_onehot,
                             grad_outputs=None,
@@ -976,8 +978,8 @@ class ScorePosNet3D(nn.Module):
                 log_ligand_v_recon = F.log_softmax(v0_from_e, dim=-1)
                 log_ligand_v = index_to_log_onehot(ligand_v, self.num_classes)
 
-                # Apply guidance. The type score is added to the log-onehot BEFORE q_v_posterior
-                # and is NOT centred over classes.
+                # Apply guidance. The type score is added to the log-onehot before
+                # q_v_posterior, and it is not centred over classes.
                 pos_model_mean_h1 = pos_model_mean + w_on * head1_pos_grad_weight * (0.5 * pos_log_variance).exp() * head1_pos_grad
                 log_ligand_v_h1 = log_ligand_v + w_on * head1_type_grad_weight * head1_v_grad
 

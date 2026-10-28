@@ -21,7 +21,7 @@ Two box modes, both needed:
 Molecules meeko cannot prepare are written with prep_ok=0 and a reason, NEVER dropped: the
 fragmentation rate differs by model (15-28% for the physics models, 0% for every baseline), so
 silent skipping would rebuild exactly the missing-not-at-random bias this experiment exists to
-remove. See results/pose_fidelity/fragmentation_census.csv.
+remove, so the fragmentation rate belongs in the reported counts.
 
 Run with the meekovina env (meeko 0.6.1 + vina 1.2.2):
     ~/anaconda3/envs/meekovina/bin/python scripts/vina_meeko_dock.py \

@@ -1,8 +1,8 @@
 # Training configuration for the chemistry-gated Vina interaction-energy objective.
 #
-# This is the configuration that produced the published model. It trains the diffusion
-# denoiser, the atom-type head, and the affinity head jointly, and adds the gated
-# intermolecular energy evaluated at the predicted clean coordinates.
+# It trains the diffusion denoiser, the atom-type head, and the affinity head jointly, and
+# adds the gated intermolecular energy evaluated at the predicted clean coordinates. These
+# are the settings behind the reported results.
 #
 # Run:  python bin/train.py --config configs/train.yml --tag <run name>
 
@@ -24,27 +24,27 @@ model:
   num_diffusion_timesteps: 1000
   loss_v_weight: 100.
   loss_exp_weight: 1.
-  # The raw energy measures about -10 per graph on ground-truth poses, so at this weight it
-  # contributes about -0.50 per graph -- roughly a fifth of the coordinate loss. The weight
-  # is additionally ramped over training; see vdw_ramp_iters below.
+  # The raw energy measures about -10 per graph on reference poses, so at this weight it
+  # contributes about -0.50 per graph, roughly a fifth of the coordinate loss. The weight is
+  # additionally ramped over training. See vdw_ramp_iters below.
   loss_vdw_weight: 0.05
 
   # Gate the hydrophobic and hydrogen-bond terms by AutoDock Vina's OWN atom-typing rules
   # (gated_energy_diffusion/utils/vina_types.py, ported from Vina's atom_constants.h and
   # model.cpp::assign_types):
-  #   hydrophobic fires iff BOTH atoms are xs_is_hydrophobic
-  #     -> a carbon with NO heteroatom neighbour (C_H), or F/Cl/Br/I. A carbon bonded to
-  #        N/O/S/P or to a halogen is C_P and does NOT count.
-  #   h-bond fires iff xs_h_bond_possible: (donor & acceptor) in either direction
+  #   hydrophobic fires iff both atoms are xs_is_hydrophobic
+  #     -> a carbon with no heteroatom neighbour (C_H), or F/Cl/Br/I. A carbon bonded to
+  #        N/O/S/P or to a halogen is C_P and does not count.
+  #   h-bond fires iff xs_h_bond_possible, so a donor and an acceptor in either direction
   #     -> never acceptor-acceptor (e.g. ligand C=O ... backbone C=O) or donor-donor.
   #   steric (gauss1/gauss2/repulsion) applies to every pair.
-  # Surface distance d = r - (R_i + R_j) uses Vina's xs_radius (C 1.9, N 1.8, O 1.7, ...),
-  # NOT Bondi radii -- this puts the H-bond ramp (active for d in [-0.7, 0]) at
-  # r in [2.8, 3.5] A for an N...O pair. Getting this wrong moves the ramp to
-  # [2.37, 3.07] A and changes per-atom gradient direction for a large fraction of atoms.
+  # The surface distance d = r - (R_i + R_j) uses Vina's xs_radius (C 1.9, N 1.8, O 1.7 and
+  # so on) rather than Bondi radii, which puts the H-bond ramp (active for d in [-0.7, 0])
+  # at r in [2.8, 3.5] A for an N...O pair. Bondi radii would move the ramp to
+  # [2.37, 3.07] A and change the per-atom gradient direction for a large fraction of atoms.
   #
-  # Setting this False does NOT switch the terms off, it makes them fire on EVERY pair,
-  # which is the ungated behaviour the published model does not use. Keep it True.
+  # Setting this False does not switch the terms off. It makes them fire on every pair,
+  # which is a different energy, and the model rejects that setting at construction time.
   vina_type_gating: True
 
   sample_time_method: symmetric
@@ -82,8 +82,8 @@ train:
   batch_size: 2
   num_workers: 0
   n_acc_batch: 2
-  # Effectively unbounded: the run is stopped by wall time or by hand, and the published
-  # checkpoint is the best-validation one (iteration 1,195,000).
+  # Effectively unbounded. The run is stopped by wall time or by hand, and the checkpoint
+  # behind the reported results is the best-validation one, at iteration 1,195,000.
   max_iters: 100000000
   # omega_m = loss_vdw_weight * min(it / vdw_ramp_iters, vdw_ramp_cap)
   #         = 0.05 * min(it / 200000, 1)
@@ -92,7 +92,7 @@ train:
   vdw_ramp_iters: 200000
   vdw_ramp_cap: 1.0
   val_freq: 1000
-  # Gaussian noise added to pocket coordinates, seen by BOTH the network input and the
+  # Gaussian noise added to pocket coordinates, seen by both the network input and the
   # energy branch. The quantity minimised is therefore the pair potential convolved with a
   # 0.1 A Gaussian in the surface distance d, while validation evaluates it on the
   # unperturbed pocket.

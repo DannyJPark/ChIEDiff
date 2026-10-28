@@ -60,11 +60,11 @@ def make_obmol(xyz, atomic_numbers, atom_affinity=None):
     mol = ob.OBMol()
     mol.BeginModify()
     atoms = []
-    # zip() stops at the shortest sequence, so an empty atom_affinity silently yields a
-    # ZERO-ATOM molecule instead of raising -- reconstruct_from_generated's own default is []
-    # and callers like utils/evaluation/docking_qvina.py pass only (xyz, atomic_nums). The
-    # weight is metadata (read back as the '_affinity_weight' atom prop), never structural,
-    # so fall back to one neutral entry per atom.
+    # zip() stops at the shortest sequence, so an empty atom_affinity would yield a molecule
+    # with no atoms instead of raising. reconstruct_from_generated defaults it to [], and some
+    # callers pass only (xyz, atomic_nums). The weight is metadata, read back as the
+    # '_affinity_weight' atom property, and never structural, so fall back to one neutral
+    # entry per atom.
     if atom_affinity is None or len(atom_affinity) == 0:
         atom_affinity = [0.0] * len(atomic_numbers)
     for xyz, t, affinity in zip(xyz, atomic_numbers, atom_affinity):
@@ -72,9 +72,9 @@ def make_obmol(xyz, atomic_numbers, atom_affinity=None):
         # ch = struct.channels[t]
         atom = mol.NewAtom()
         atom.SetAtomicNum(int(t))
-        # OpenBabel's SWIG binding takes C doubles: np.float64 passes (it subclasses float) but
-        # np.float32 -- what the sampler writes -- raises TypeError. Cast rather than depend on
-        # the caller having produced float64 coordinates.
+        # OpenBabel's SWIG binding takes C doubles. np.float64 passes because it subclasses
+        # float, but np.float32, which is what the sampler writes, raises TypeError. Cast here
+        # rather than depend on the caller having produced float64 coordinates.
         atom.SetVector(float(x), float(y), float(z))
         
         # atom.SetData("affinity_weight", affinity)

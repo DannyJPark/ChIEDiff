@@ -7,16 +7,18 @@ atom types). Results are written as one `result_{i}.pt` per molecule under
 
 Reproducibility notes:
 
-  * The published sample sets are 100 molecules per pocket, produced by THREE chunked
-    invocations per pocket -- 24, then 2, then 76 molecules -- all at `--seed 42`, each
+  * The archived sample sets hold 100 molecules per pocket, produced by three chunked
+    invocations per pocket of 24, then 2, then 76 molecules, all at `--seed 42`, each
     appending to the same pocket directory via `--start_index` (0, 24, 26). Each invocation
     re-seeds and then draws its own atom counts and initial noise, so a single
-    `--num_samples 100` run at seed 42 yields a DIFFERENT set of 100 molecules. To reproduce
-    the published set, reproduce the chunking.
+    `--num_samples 100` run at seed 42 yields a different set of 100 molecules. Reproducing
+    the archived set means reproducing the chunking.
 
-  * Bitwise reproducibility additionally requires `OMP_NUM_THREADS=1`. At default GPU
-    threading, two otherwise identical runs differ by 10-19 atom types; at
-    `OMP_NUM_THREADS=8` they differ by 6-7. Only at 1 thread are they bitwise identical.
+  * `OMP_NUM_THREADS=1` is required for run-to-run comparability. At default GPU threading
+    two otherwise identical runs differ by 10 to 19 atom types, and at `OMP_NUM_THREADS=8`
+    by 6 to 7. Only at one thread are they bitwise identical. Even then the sampler does not
+    reproduce individual molecules across different chunkings, so a fresh run reproduces the
+    reported statistics rather than the molecule identities. See README section 6.
 
 Usage:
     OMP_NUM_THREADS=1 python bin/sample.py --ckpt <checkpoint>.pt --data_id 0 \
@@ -85,7 +87,7 @@ def main():
                        help='Override split file path from checkpoint config')
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--seed', type=int, default=42,
-                        help='RNG seed. Seeded once, before the model is built; the published '
+                        help='RNG seed. Seeded once, before the model is built. The archived '
                              'samples used 42.')
     parser.add_argument('--batch_size', type=int, default=4)
     parser.add_argument('--num_samples', type=int, default=4)
@@ -308,9 +310,9 @@ def main():
         for i in range(exp_on_traj_all.shape[1]):
             all_exp_on_traj_per_sample.append(exp_on_traj_all[:, i])
 
-    # Save results (compatible with the docking/export tools). --start_index offsets the file
-    # numbering so a second run can APPEND to an existing pocket dir (result_{start}..) instead of
-    # overwriting result_0.. from scratch.
+    # Save results in the layout the docking and export tools expect. --start_index offsets the
+    # file numbering so a second run appends to an existing pocket directory, writing
+    # result_{start}.. instead of overwriting result_0.. from scratch.
     for idx in range(len(all_pred_pos)):
         result_file = os.path.join(result_path, f'result_{idx + args.start_index}.pt')
         torch.save({

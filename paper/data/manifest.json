@@ -1,0 +1,27 @@
+{
+  "description": "Presentation extracts; original aggregates retained unchanged.",
+  "transformations": {
+    "coverage": "Join F1/F2/F3 by registry id; preserve per-table counts.",
+    "distributions": "Join ring and bond aggregates by id; no reaggregation.",
+    "properties": "Add n_measured = n_mols - n_unmeasurable, the denominator of every property mean; no reaggregation.",
+    "pose_table": "F2 strict rows plus pb_clash_avg / pb_clash_free_pct from PBD, joined by id with an n_strict equality assert; no reaggregation.",
+    "main_quality": "F3 ProLIF means and n; F2 strict strain_med, n_strict and n_strain; PBD pb_clashes_protein_avg and clash_free_protein_pct, plus pb_clash_fail_pct = 100 - clash_free_protein_pct. Join by id, preserving the separate NCI and pose cohorts; no reaggregation.",
+    "main_chemistry": "PROP pooled property means and measured n, BOND ejsd (assert matching measured n), and F1 div_avg/n_pockets_div. Diversity retains its original pocket-macro cohort; no reaggregation.",
+    "main_ablation": "Select seven recorded rows of ablation_nci_v2/posecheck_ablation_all.csv, retain original interaction/clash/finite-strain counts and values, add energy/guidance labels; no reaggregation.",
+    "posebusters": "Preserve all measured subsets and rates; shorten labels.",
+    "ablation": "Split the registry-rostered PoseCheck aggregate into its ON/OFF cohorts and preserve PLIP report precision; no reaggregation."
+  },
+  "source_sha256": {
+    "results/comparison/f1_sbdd/main_table/main_table.csv": "bd6eda0c37feb0d25ee543db5053075b19b45677040534e8e80d6c7b8996176f",
+    "results/comparison/f2_pose_fidelity/pose_stability/pose_stability_strict.csv": "9f8d219931139b01bc6085436c4034968c0bdecf919801369d905ae2dd465247",
+    "results/comparison/f3_nci/nci_summary_strict.csv": "f2146922867ea738c9d111f971db2f319ea2a2ec8015fb4f06c2f00d7c823a40",
+    "results/comparison/f1_sbdd/properties/property_overall.csv": "4040c0a1554469582eb8cd2b1644be42107f80776e625262912d1fc34af3bfd3",
+    "results/comparison/f1_sbdd/ring_size/ring_size_overall.csv": "665005ad516fdc2a108f7525e5ea6c69bc6ef8b7c4597d84cc1cc5f3c2497325",
+    "results/comparison/f1_sbdd/bond_jsd/bond_jsd_overall.csv": "f4db8ceb2f6ce673046dc4445d141140742227dffff8117360381021ec6d5688",
+    "results/comparison/f2_pose_fidelity/pb_distance/pb_distance_strict.csv": "3173b2d3a08805d54bef4825f50aac610c440dc49f64d7b430bdf88dd92a3cdd",
+    "results/comparison/appendix/posebusters/pose_quality_summary_posebusters.csv": "7b01744a8eb17202140ca19b4848e8e4af90c9e2f47c9e93edfdfd83a77a80c0",
+    "results/diagnostics/ablation_nci_v2/posecheck_ablation_all.csv": "8ba6ef45964657044b57593e63bcc3b26b20d3dafc50ca171b089209b40b4aef",
+    "results/diagnostics/ablation_nci/nci_summary_abl.txt": "aa66f8d4cd247b37a74c6b84f11e414c97012fe013dbb872323a05ffac281fb6",
+    "results/comparison/f4_delta_score/delta_score_per_mol.csv": "5d31e45fd8c3fed7dd5ec778715553234a49961100686f65191d9c7d59ed8d09"
+  }
+}

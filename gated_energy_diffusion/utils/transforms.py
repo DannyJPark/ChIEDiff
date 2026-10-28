@@ -175,10 +175,10 @@ class FeaturizeLigandBond(object):
 class FeaturizeVinaAtomTypes(object):
     """Attach AutoDock Vina XS-type flags [is_hydrophobic, is_donor, is_acceptor] per atom.
 
-    Required by vdw_loss_mode: 'vina' so the hydrophobic / H-bond terms are gated by Vina's real
-    atom-typing rules instead of an element-level proxy (see utils/vina_types.py). The flags are
-    constant w.r.t. the diffusion optimization, so computing them once from the ground-truth
-    topology here is exactly what Vina itself does.
+    The interaction energy requires these flags, which gate its hydrophobic and H-bond terms
+    by Vina's own atom-typing rules rather than by an element-level approximation (see
+    utils/vina_types.py). The flags are constant with respect to the diffusion optimization, so
+    they are computed once here from the reference topology, which is what Vina also does.
     """
 
     def __call__(self, data: ProteinLigandData):

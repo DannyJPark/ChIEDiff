@@ -3,17 +3,17 @@
 #
 #   bash bin/sample_local.sh --ckpt archive/<weights file> --pockets 0-4
 #
-# Defaults reproduce the published sampling settings: head1_only guidance at s_x=25 / s_v=100,
-# 1000 diffusion steps, 100 molecules per pocket, seed 42.
+# Defaults match the archived sampling settings, namely head1_only guidance at s_x=25 and
+# s_v=100, 1000 diffusion steps, 100 molecules per pocket, seed 42.
 #
-# COST. One pocket at 100 molecules is roughly an hour on a 24 GB card, so the full 100-pocket
-# benchmark is days sequentially. --pockets defaults to 0-4. The published molecules are in the
-# data archive, and `make tables` reproduces every published number without sampling at all.
+# Cost. One pocket at 100 molecules is roughly an hour on a 24 GB card, so the full 100-pocket
+# benchmark takes days sequentially, and --pockets defaults to 0-4. The archived molecules ship
+# with the data, and `make tables` rebuilds every reported number without sampling at all.
 #
 # Re-runnable: a pocket whose first result file exists is skipped.
 #
-# OMP_NUM_THREADS=1 is set because it is the only way the sampler is even run-to-run
-# comparable. Note that it still does not reproduce individual molecules -- see README 6.4.
+# OMP_NUM_THREADS=1 is set because run-to-run comparability requires a single thread. Even so,
+# the sampler does not reproduce individual molecules. See README section 6.4.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 

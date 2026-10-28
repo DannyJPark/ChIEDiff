@@ -115,8 +115,8 @@ def main():
                          '--ckpt starts a new one from borrowed weights.')
 
     # Load checkpoint or config.
-    # A checkpoint carries the data root it was trained under, and older ones point at roots
-    # this repository never had, so normalize to ./data/ before the config is used
+    # A checkpoint carries the data root it was trained under, which need not exist on this
+    # machine, so normalize it to ./data/ before the config is used
     # (gated_energy_diffusion/utils/path_fix.py). The run logger does not exist yet at this
     # point, hence the print-backed stand-in.
     boot_logger = SimpleNamespace(info=print)
@@ -204,10 +204,11 @@ def main():
         trans.FeaturizeLigandBond(),
         trans.NormalizeVina(config.data.name)
     ]
-    # The gated energy loss gates its hydrophobic / H-bond terms by real atom typing
-    # (donor-acceptor H-bonds; hydrophobic carbons only), which needs the per-atom XS flags built
-    # from the ground-truth topology (gated_energy_diffusion/utils/vina_types.py). Unconditional:
-    # the shipped configuration always uses the gated energy.
+    # The gated energy loss gates its hydrophobic and H-bond terms by real atom typing, so
+    # H-bonds need a donor-acceptor pair and hydrophobic contacts need hydrophobic carbons. That
+    # needs the per-atom XS flags built from the reference topology
+    # (gated_energy_diffusion/utils/vina_types.py). Added unconditionally, because the shipped
+    # configuration always uses the gated energy.
     transform_list.append(trans.FeaturizeVinaAtomTypes())
 
     if config.data.transform.random_rot:
@@ -223,11 +224,10 @@ def main():
 
     if config.data.name != 'pl':
         raise ValueError(
-            f"Unsupported dataset: {config.data.name!r}. This release ships the CrossDocked2020 "
-            f"'pl' dataset only.")
-    # The shipped split has val=0 and test=100, so the trainer validates on the TEST subset. This
-    # is deliberate and is what produced the released weights: keeping it means checkpoint
-    # selection is NOT independent of the evaluation pockets.
+            f"Unsupported dataset: {config.data.name!r}. Only the CrossDocked2020 'pl' dataset "
+            f"is supported.")
+    # The shipped split has val=0 and test=100, so the trainer validates on the test subset.
+    # Checkpoint selection is therefore not independent of the evaluation pockets.
     train_set, val_set, test_set = subsets['train'], subsets['test'], []
 
     logger.info(f'Training: {len(train_set)} Validation: {len(val_set)} Test: {len(test_set)}')
@@ -262,7 +262,7 @@ def main():
     optimizer = utils_train.get_optimizer(config.train.optimizer, model)
     scheduler = utils_train.get_scheduler(config.train.scheduler, optimizer)
 
-    # NOTE: start_it was computed above (before seed_all, which is offset by it). Do not reset it here.
+    # start_it was computed above, before seed_all, which is offset by it. Do not reset it here.
     if args.resume:
         missing = [k for k in ('optimizer', 'scheduler') if ckpt.get(k) is None]
         if missing:
@@ -286,18 +286,18 @@ def main():
         for _ in range(config.train.n_acc_batch):
             batch = next(train_iterator).to(args.device)
 
-            # A missing FeaturizeVinaAtomTypes transform must fail hard here: without the per-atom
-            # XS flags the energy term would silently fall back to the element-level proxy, which
-            # is a different objective and not the published one.
+            # The energy term needs the per-atom XS flags. A missing FeaturizeVinaAtomTypes
+            # transform fails here rather than falling back to an element-level approximation,
+            # which would be a different objective.
             assert hasattr(batch, 'ligand_vina_xs') and batch.ligand_vina_xs is not None, (
                 'batch has no ligand_vina_xs: the FeaturizeVinaAtomTypes transform is missing')
             assert hasattr(batch, 'protein_vina_xs') and batch.protein_vina_xs is not None, (
                 'batch has no protein_vina_xs: the FeaturizeVinaAtomTypes transform is missing')
 
-            # Gaussian noise on the pocket coordinates (train.pos_noise_std = 0.1 Angstrom), seen by
-            # BOTH the network input and the energy branch. The quantity minimised is therefore the
-            # pair potential convolved with a 0.1 A Gaussian in the surface distance d; validation
-            # evaluates the same loss on the unperturbed pocket.
+            # Gaussian noise on the pocket coordinates (train.pos_noise_std = 0.1 Angstrom),
+            # seen by both the network input and the energy branch. The quantity minimised is
+            # therefore the pair potential convolved with a 0.1 A Gaussian in the surface
+            # distance d. Validation evaluates the same loss on the unperturbed pocket.
             protein_noise = torch.randn_like(batch.protein_pos) * config.train.pos_noise_std
             gt_protein_pos = batch.protein_pos + protein_noise
 
@@ -319,9 +319,11 @@ def main():
 
             # === Gated intermolecular energy term with a curriculum ramp ===
             # total energy weight = loss_vdw_weight * min(it / vdw_ramp_iters, vdw_ramp_cap)
-            # Production: loss_vdw_weight 0.05, vdw_ramp_iters 200000, vdw_ramp_cap 1.0 -> omega_m = 0.05 * min(it/200000, 1); applied here, not in the model, because the model's loss method has no access to the optimizer iteration.
-            # The ramp is capped (default 1.0) so the physics term does not keep
-            # growing past full strength and overwhelm the diffusion loss.
+            # With the shipped values of 0.05, 200000 and 1.0 that is
+            # omega_m = 0.05 * min(it / 200000, 1). The ramp is applied here rather than inside
+            # the model, because the model's loss method has no access to the optimizer
+            # iteration. The cap keeps the energy term from growing past full strength and
+            # overwhelming the diffusion loss.
             loss_vdw = results.get('loss_vdw', None)
             vdw_weight = getattr(config.model, 'loss_vdw_weight', 0.)
             if loss_vdw is not None and vdw_weight > 0:
@@ -481,8 +483,9 @@ def main():
     save_freq = args.save_freq if args.save_freq > 0 else config.train.val_freq
 
     def save_last(it, best_loss, best_iter, reason):
-        """Rolling checkpoint that --resume picks up. Written atomically: a SIGKILL landing
-        mid-write would otherwise leave a truncated last.pt and break the next chain link."""
+        """Rolling checkpoint that --resume picks up. Written atomically, because a SIGKILL
+        landing mid-write would otherwise leave a truncated last.pt and break the next chain
+        link."""
         last_path = os.path.join(ckpt_dir, 'last.pt')
         tmp_path = last_path + '.tmp'
         torch.save({
@@ -498,14 +501,14 @@ def main():
         os.replace(tmp_path, last_path)
         logger.info(f'[Checkpoint] last.pt <- iteration {it} ({reason})')
 
-    # The scheduler this model was trained under caps wall time at 3 days, so a full run is a chain
-    # of jobs and every link must save on its way out. Slurm sends SIGTERM at wall-time, then
-    # SIGKILL after KillWait: flip a flag and checkpoint at the next clean iteration boundary
-    # rather than saving inside the handler itself.
+    # A full run can outlast a single scheduler allocation, so it becomes a chain of jobs and
+    # every link must save on its way out. Slurm sends SIGTERM at wall-time, then SIGKILL after
+    # KillWait, so the handler flips a flag and the checkpoint is written at the next clean
+    # iteration boundary rather than inside the handler itself.
     stop_requested = {'v': False}
 
     def _on_term(signum, _frame):
-        logger.info(f'[Signal] {signal.Signals(signum).name} received — will checkpoint and exit '
+        logger.info(f'[Signal] {signal.Signals(signum).name} received, will checkpoint and exit '
                     f'at the next iteration boundary')
         stop_requested['v'] = True
 
@@ -541,8 +544,9 @@ def main():
                 if best_loss is None or val_loss < best_loss:
                     logger.info(f'[Validate] Best val loss achieved: {val_loss:.6f}')
 
-                    # Every new best is kept on disk (previous bests are NOT deleted), so the whole
-                    # improvement trajectory stays available for later analysis / re-sampling.
+                    # Every new best is kept on disk and earlier bests are not deleted, so the
+                    # whole improvement trajectory stays available for later analysis or
+                    # re-sampling.
                     best_loss, best_iter = val_loss, it
                     ckpt_path = os.path.join(ckpt_dir, '%d.pt' % it)
                     best_ckpt_path = ckpt_path

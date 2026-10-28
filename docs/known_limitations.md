@@ -142,20 +142,17 @@ tables regenerate without them.
 
 ## Repository limitations
 
-### One figure has no generator
+### The figures are not regenerated here
 
-The method-overview schematic was authored by hand in presentation software. Its PNG ships
-and is covered by the figure manifest's sha256, but it cannot be regenerated from code.
-Every other figure has a generator; `figure_build/figures/PROVENANCE.md` says which.
+`reproduction.ipynb` prints the tables. The figures were produced by separate generators that
+are not part of this release, and one of them, the method-overview schematic, was authored by
+hand in presentation software and cannot be regenerated from code at all.
 
-Two further figures need PyMOL plus the archived poses to regenerate. Their generators ship;
-PyMOL is an optional requirement.
+### The notebook checks the tables, not the manuscript
 
-### The manuscript source is not here before acceptance
-
-Tables are injected into standalone harness documents under `tables/` rather than into the
-manuscript. The cell-level gate (every printed cell equals its source CSV) still runs; what
-is deferred is the check that the manuscript's own table blocks match a fresh render.
+The notebook recomputes each table from the summary CSVs and, for this work's own row, from
+the generated molecules. What it cannot check is that the numbers typeset in the manuscript
+match those tables, because the manuscript source is not in this repository.
 
 ### One GPL-2.0 file inside an MIT repository
 

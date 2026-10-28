@@ -4,10 +4,10 @@ Every term is a function of the SURFACE distance
 
     d = r - (R_i + R_j)
 
-that is, the gap between the two van der Waals surfaces -- NOT the centre-to-centre
-distance r.  R_i, R_j are Vina's ``xs_radius`` values (XS_RADIUS_BY_Z in
-gated_energy_diffusion/utils/vina_types.py).  Passing r straight in shifts every term
-and silently changes the energy.
+that is, the gap between the two van der Waals surfaces, not the centre-to-centre
+distance r. R_i and R_j are Vina's ``xs_radius`` values (XS_RADIUS_BY_Z in
+gated_energy_diffusion/utils/vina_types.py). Passing r straight in shifts every term
+and changes the energy.
 
 ``VINA_WEIGHT`` holds Vina's published coefficients, in the term order
 

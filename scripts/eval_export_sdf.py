@@ -16,7 +16,7 @@ ref_ligand is the crystal ligand for that pocket; the docking modes use it as th
 (--autobox_ligand), which is what "redock into the known pocket" means here.
 
 Usage:
-    python scripts/eval_export_sdf.py --pt results/sampling_results/targetdiff_vina_docked.pt \
+    python scripts/eval_export_sdf.py --pt archive/chiediff_generated_molecules.pt \
         --out eval_gnina/targetdiff
 """
 import argparse
@@ -58,7 +58,7 @@ def load_grouped(path):
     """Normalise the three .pt layouts in this repo to list[pocket] of list[mol_dict].
 
     The sampling sets are not stored uniformly:
-      * grouped     : list[N_pockets] of list[mol]        (targetdiff, kgdiff, consolidate_docking)
+      * grouped     : list[N_pockets] of list[mol]        (what group_samples.py writes)
       * dict-wrapped: {'all_results': [mol, ...], ...}     (PIDiff) -- a FLAT list, one entry per
                       molecule, so it has to be regrouped by ligand_filename
       * flat        : [mol, ...]                           (same, without the dict wrapper)

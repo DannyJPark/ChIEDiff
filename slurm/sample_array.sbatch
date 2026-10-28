@@ -21,15 +21,15 @@
 # Re-runnable: a pocket whose id{N}/result_<first>.pt already exists is skipped, so a
 # preempted or partially completed array resumes cleanly. FORCE=1 to redo.
 #
-# The published cohort was generated in three chunks (24, then 2, then 76) using
-# START_INDEX. A single 100-molecule run at the same seed produces a DIFFERENT molecule
-# set -- see README section 6.3.
+# The archived cohort was generated in three chunks of 24, then 2, then 76, using
+# START_INDEX. A single 100-molecule run at the same seed produces a different molecule set,
+# and the sampler does not reproduce individual molecules. See README section 6.3.
 # =========================================================================
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-.}"
 mkdir -p logs_slurm
 
-# See the note in train.sbatch: activate conda ourselves, never `conda init`.
+# As in train.sbatch, activate conda from the script and never run `conda init`.
 CONDA_BASE="${CONDA_BASE:-$HOME/anaconda3}"
 if [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
     # shellcheck disable=SC1091
@@ -40,18 +40,19 @@ else
 fi
 
 # Bitwise reproducibility requires a single thread. At default GPU threading two identical
-# runs of this script differ by 10-19 atom types; at OMP_NUM_THREADS=8 by 6-7; only at 1
-# are they bit-identical. Set BITWISE=0 to trade that for throughput on an exploratory run.
+# runs of this script differ by 10 to 19 atom types, at OMP_NUM_THREADS=8 by 6 to 7, and only
+# at one thread are they bit-identical. Set BITWISE=0 to trade that for throughput on an
+# exploratory run.
 if [ "${BITWISE:-1}" = "1" ]; then
     export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 fi
 
-# Preflight. A few GPU nodes sit in a broken CUDA state (torch.cuda.is_available() is False,
-# nvidia-smi reports "Unknown Error"). A task landing there fails instantly at checkpoint
-# load and, because it fails in seconds, DRAINS the whole array through that one node.
-# Detect it and requeue THIS task with the bad node excluded, so it reschedules elsewhere
-# rather than silently burning the array. Keep this: the set of bad nodes changes, so a
-# static exclude list is not a substitute.
+# Preflight. A GPU node can be left in a broken CUDA state where torch.cuda.is_available() is
+# False and nvidia-smi reports "Unknown Error". A task landing there fails within seconds at
+# checkpoint load, and a task that fails that fast drains the whole array through that one
+# node. Detect the condition, exclude the node, and requeue this task so it reschedules
+# elsewhere. The affected nodes vary over time, so a static exclude list does not replace
+# this check.
 if ! python -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
     echo "[sample] CUDA unavailable on ${SLURMD_NODENAME} -> exclude node + requeue this task"
     scontrol update JobId="${SLURM_JOB_ID}" ExcludeNodes="${SLURMD_NODENAME}" 2>/dev/null || true
@@ -73,7 +74,7 @@ FORCE="${FORCE:-0}"
 
 echo "=== sample ${SLURM_ARRAY_JOB_ID:-local}:${TID} on ${SLURMD_NODENAME:-$(hostname)} (${SLURM_JOB_PARTITION:-?}) ==="
 echo "ckpt=${CKPT}  result=${RESULT}  n=${NUM_SAMPLES} from ${START_INDEX}  batch=${BATCH_SIZE}  seed=${SEED}  OMP=${OMP_NUM_THREADS:-unset}"
-# Same reason as in train.sbatch: the device is not recoverable after the fact.
+# As in train.sbatch, the device is not recoverable after the fact.
 nvidia-smi -L 2>/dev/null | head -1 || true
 
 if [ "$FORCE" != "1" ] && [ -f "${RESULT}/id${TID}/result_${START_INDEX}.pt" ]; then

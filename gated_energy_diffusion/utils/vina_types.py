@@ -1,6 +1,6 @@
 """
-AutoDock Vina atom typing (XS types), ported from the Vina source so the `vina` physics loss
-gates its hydrophobic / H-bond terms by the SAME rules the real scoring function uses.
+AutoDock Vina atom typing (XS types), ported from the Vina source so that the interaction
+energy gates its hydrophobic and H-bond terms by the same rules the scoring function uses.
 
 Reference (AutoDock-Vina, src/lib/atom_constants.h):
 
@@ -30,23 +30,23 @@ Reference (src/lib/model.cpp, model::assign_types):
 So, in words:
   * hydrophobic  = a CARBON with NO heteroatom neighbour, or F / Cl / Br / I.
                    (a carbon bonded to N,O,S,P,halogen is XS_TYPE_C_P -> NOT hydrophobic)
-  * acceptor     = N or O typed OA/NA by AutoDock (S is deliberately excluded:
-                   "X-Score formulation apparently ignores SA" -- Vina source comment)
+  * acceptor     = N or O typed OA/NA by AutoDock. Sulfur is excluded, the Vina source
+                   commenting that "X-Score formulation apparently ignores SA".
   * donor        = N or O carrying a polar hydrogen (bonded to an AD_TYPE_HD), or a metal
-  * H-bond fires ONLY on a donor-acceptor pair, never acceptor-acceptor / donor-donor.
+  * H-bond fires only on a donor-acceptor pair, never acceptor-acceptor or donor-donor.
 
-Also exported: XS_RADIUS_BY_Z, Vina's `xs_radius` per element (atom_kind_data).  These are NOT
-the Bondi radii in utils/vina_rules.ATOM_VANDER_R -- Vina uses C 1.9 / N 1.8 / O 1.7, which sets
-the surface distance d = r - (R_i + R_j) that every Vina term is a function of.  With Vina's
-radii an N...O pair has R_i+R_j = 3.5 A, so the H-bond ramp (active for d in [-0.7, 0]) spans
-r in [2.8, 3.5] A -- exactly the real H-bond range.
+Also exported: XS_RADIUS_BY_Z, Vina's `xs_radius` per element (atom_kind_data). These are not
+Bondi radii. Vina uses C 1.9, N 1.8 and O 1.7, which sets the surface distance
+d = r - (R_i + R_j) that every Vina term is a function of. With Vina's radii an N...O pair has
+R_i + R_j = 3.5 A, so the H-bond ramp (active for d in [-0.7, 0]) spans r in [2.8, 3.5] A,
+which is the real H-bond range.
 """
 
 import torch
 
 # --- Vina xs_radius (src/lib/atom_constants.h, atom_kind_data) -------------------------------
 # C/A 1.9 | N/NA 1.8 | O/OA 1.7 | P 2.1 | S/SA 2.0 | H/HD 1.5 | F 1.5 | Cl 1.8 | Br 2.0 | I 2.2
-# Se is absent from Vina's table; we map it to sulfur (2.0), its closest congener.
+# Se is absent from Vina's table and is mapped to sulfur (2.0), its closest congener.
 XS_RADIUS_BY_Z = {1: 1.5, 6: 1.9, 7: 1.8, 8: 1.7, 9: 1.5, 15: 2.1,
                   16: 2.0, 17: 1.8, 34: 2.0, 35: 2.0, 53: 2.2}
 XS_RADIUS_DEFAULT = 1.9
@@ -54,16 +54,17 @@ XS_RADIUS_DEFAULT = 1.9
 HALOGEN_Z = (9, 17, 35, 53)      # F, Cl, Br, I  -> always XS_TYPE_*_H (hydrophobic)
 
 # --- Protein XS typing table ------------------------------------------------------------------
-# flags = (hydrophobic, donor, acceptor).  Derived by applying Vina's rules to the standard
-# residue topologies: a carbon is hydrophobic iff every heavy neighbour is a carbon.
+# flags = (hydrophobic, donor, acceptor). Derived by applying Vina's rules to the standard
+# residue topologies, where a carbon is hydrophobic iff every heavy neighbour is a carbon.
 _H = (1, 0, 0)   # hydrophobic carbon (XS_TYPE_C_H)
-_X = (0, 0, 0)   # polar carbon (C_P) / sulfur (S_P) / proline N (N_P) -- inert for both terms
+_X = (0, 0, 0)   # polar carbon (C_P), sulfur (S_P) or proline N (N_P), inert for both terms
 _D = (0, 1, 0)   # donor only        (N_D / O_D)
 _A = (0, 0, 1)   # acceptor only     (N_A / O_A)
 _DA = (0, 1, 1)  # donor + acceptor  (N_DA / O_DA)
 
-# Backbone: N carries an amide H (donor); CA is bonded to N and C is bonded to O/N, so both are
-# C_P; O is a carbonyl acceptor.  Proline's ring N has no H -> N_P (overridden below).
+# Backbone: N carries an amide H and is a donor. CA is bonded to N and C is bonded to O or N,
+# so both are C_P, and O is a carbonyl acceptor. Proline's ring N has no H and is N_P, which the
+# sidechain table below overrides.
 _BACKBONE = {'N': _D, 'CA': _X, 'C': _X, 'O': _A, 'OXT': _A, 'OT1': _A, 'OT2': _A}
 
 _SIDECHAIN = {
@@ -75,8 +76,8 @@ _SIDECHAIN = {
     'GLN': {'CB': _H, 'CG': _H, 'CD': _X, 'OE1': _A, 'NE2': _D},
     'GLU': {'CB': _H, 'CG': _H, 'CD': _X, 'OE1': _A, 'OE2': _A},
     'GLY': {},
-    # Both imidazole N are H-bond capable; which one is the donor depends on the HIS tautomer,
-    # which the heavy-atom-only pocket files do not record.  Treat both as N_DA.
+    # Both imidazole N are H-bond capable. Which one is the donor depends on the HIS
+    # tautomer, which the heavy-atom-only pocket files do not record, so both are N_DA.
     'HIS': {'CB': _H, 'CG': _X, 'ND1': _DA, 'CD2': _X, 'CE1': _X, 'NE2': _DA},
     'ILE': {'CB': _H, 'CG1': _H, 'CG2': _H, 'CD1': _H, 'CD': _H},
     'LEU': {'CB': _H, 'CG': _H, 'CD1': _H, 'CD2': _H},
@@ -98,9 +99,9 @@ _AA_ORDER = ['ALA', 'CYS', 'ASP', 'GLU', 'PHE', 'GLY', 'HIS', 'ILE', 'LYS', 'LEU
 
 
 def _protein_atom_flags(res_name, atom_name):
-    """(hydrophobic, donor, acceptor) for one protein heavy atom. Unknown names -> inert."""
+    """(hydrophobic, donor, acceptor) for one protein heavy atom. Unknown names are inert."""
     side = _SIDECHAIN.get(res_name, {})
-    if atom_name in side:            # sidechain (and PRO's N override) wins over the backbone table
+    if atom_name in side:            # the sidechain table, including PRO's N, wins over the backbone
         return side[atom_name]
     return _BACKBONE.get(atom_name, _X)
 
@@ -112,7 +113,7 @@ def protein_vina_flags(atom_name, atom_to_aa_type):
         atom_name:       list[str] of length N (PDB atom names, e.g. 'CA', 'OD1', 'NE2')
         atom_to_aa_type: (N,) long tensor of residue indices into PDBProtein.AA_NAME_NUMBER
     Returns:
-        (N, 3) bool tensor -- columns [is_hydrophobic, is_donor, is_acceptor]
+        (N, 3) bool tensor with columns [is_hydrophobic, is_donor, is_acceptor]
     """
     aa = atom_to_aa_type.tolist()
     flags = [_protein_atom_flags(_AA_ORDER[a], n) if 0 <= a < len(_AA_ORDER) else _X
@@ -123,16 +124,17 @@ def protein_vina_flags(atom_name, atom_to_aa_type):
 def ligand_vina_flags(element, bond_index, atom_feature):
     """Vina XS flags for every ligand heavy atom.
 
-    hydrophobic reproduces Vina exactly (bonded_to_heteroatom over the real bond graph).
-    donor/acceptor use RDKit's BaseFeatures Donor/Acceptor families restricted to N,O -- RDKit's
-    `Donor` SMARTS ([N;!H0], [O;H1]) is the same predicate as Vina's `bonded_to_HD` for N/O.
+    hydrophobic reproduces Vina exactly, applying bonded_to_heteroatom over the real bond
+    graph. donor and acceptor use RDKit's BaseFeatures Donor and Acceptor families restricted
+    to N and O, RDKit's `Donor` SMARTS ([N;!H0], [O;H1]) being the same predicate as Vina's
+    `bonded_to_HD` for N and O.
 
     Args:
         element:      (N,) long tensor of atomic numbers (H already removed)
         bond_index:   (2, E) long tensor, heavy-atom bonds, stored in BOTH directions
         atom_feature: (N, 8) tensor over utils.data.ATOM_FAMILIES; col 0 = Acceptor, col 1 = Donor
     Returns:
-        (N, 3) bool tensor -- columns [is_hydrophobic, is_donor, is_acceptor]
+        (N, 3) bool tensor with columns [is_hydrophobic, is_donor, is_acceptor]
     """
     n = element.numel()
     device = element.device

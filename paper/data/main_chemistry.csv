@@ -1,0 +1,10 @@
+id,label,n_property,qed_avg,sa_avg,logp_avg,heavy_avg,div_avg,n_pockets_div,ejsd
+reference,Reference (native),100,0.476,0.728,0.89,22.75,,0,
+pocket2mol,Pocket2Mol,9831,0.573,0.756,1.51,17.74,0.692,100,0.4612
+targetdiff,TargetDiff,9036,0.480,0.585,1.36,24.24,0.717,100,0.3778
+ipdiff,IPDiff,9007,0.518,0.593,3.58,24.14,0.738,100,0.4298
+alidiff,AliDiff,9232,0.503,0.565,4.38,24.43,0.735,100,0.4141
+molcraft,MolCRAFT,9667,0.504,0.686,1.16,22.71,0.725,100,0.3326
+pidiff_retrain,PIDiff (retrained),8654,0.438,0.557,1.38,24.09,0.725,100,0.5064
+kgdiff,KGDiff,8813,0.507,0.536,2.81,24.53,0.753,100,0.3872
+ours_vina,Ours (Vina+Guide),8338,0.475,0.539,2.01,24.37,0.717,99,0.5012

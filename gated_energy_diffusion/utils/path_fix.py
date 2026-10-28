@@ -36,10 +36,10 @@ def fix_checkpoint_data_paths(ckpt, logger=None):
         if p is None:
             return p
         basename = os.path.basename(p)
-        # Check common prefixes that should be replaced. Ordered longest-first so
-        # a lustre/scratch2 path is matched before the bare ./data/ fallback.
-        # ./scratch2/ was the data root from 2025-09 to 2026-08; ./lustre/ replaced
-        # it when /scratch2 turned out to be purged after 30 days without access.
+        # Checkpoints store the dataset path they were trained with, which need not exist on
+        # the machine that loads them. These prefixes are remapped onto ./data/ so a checkpoint
+        # trained elsewhere still loads. Ordered longest-first, so a lustre or scratch2 path is
+        # matched before the bare ./data/ entry.
         for prefix in ['./lustre/data/', 'lustre/data/',
                        './scratch2/data/', 'scratch2/data/', './data/']:
             if prefix in p:
