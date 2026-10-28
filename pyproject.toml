@@ -91,7 +91,5 @@ include = ["gated_energy_diffusion*"]
 [tool.setuptools.package-data]
 "gated_energy_diffusion.utils.evaluation" = ["*.pkl.gz"]
 
-# No console_scripts. bin/train.py and bin/sample.py are run directly
-# (`python bin/train.py --config configs/train.yml`), which is what the launchers in
-# slurm/ do and what every log in the reproduction record shows. Wrapping them in
-# entry points would add a package layer that buys nothing.
+# No console_scripts: bin/train.py and bin/sample.py are run directly, as
+# `python bin/train.py --config configs/train.yml`.

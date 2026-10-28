@@ -5,7 +5,6 @@ include reproduction.ipynb Makefile
 recursive-include bin *.py *.sh
 recursive-include configs *.yml
 recursive-include scripts *.py
-recursive-include slurm *.sbatch
 recursive-include tools *.py
 recursive-include envs *.yml *.md
 recursive-include docs *.md
