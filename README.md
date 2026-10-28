@@ -150,6 +150,13 @@ crystal ligands give 2.04 hydrophobic contacts per molecule under the older defi
 **Cohorts.** 9,999 molecules sampled, 9,857 reconstructed and exported to SDF, 8,340
 docking-successful, 8,069 in the strict pose cohort. Each table states its own n.
 
+## Built on
+
+The model package derives from [TargetDiff](https://github.com/guanjq/targetdiff) and
+[KGDiff](https://github.com/CMACH508/KGDiff), both MIT, and the coordinate-to-molecule
+reconstruction comes from [liGAN](https://github.com/mattragoza/liGAN), which is GPL-2.0.
+`NOTICE.md` has the per-file provenance.
+
 ## Licensing
 
 MIT, with one GPL-2.0 file that the evaluation path depends on. Per-file provenance and the

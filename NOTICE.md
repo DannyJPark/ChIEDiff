@@ -19,7 +19,15 @@ the check.
 | `gated_energy_diffusion/models/common.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
 | `gated_energy_diffusion/models/score_model.py` | derived from TargetDiff / KGDiff, extended here | MIT | — |
 | `gated_energy_diffusion/datasets/`, `gated_energy_diffusion/utils/{data,misc,train,transforms}.py` | TargetDiff lineage | MIT | — |
-| `data/crossdocked_pocket10_pose_split.pt` | [CrossDocked2020](https://bits.csb.pitt.edu/files/crossdock2020/) | **CC0 1.0** (public domain) | dataset `LICENSE` |
+| `gated_energy_diffusion/utils/warmup.py` | [pytorch-gradual-warmup-lr](https://github.com/ildoonet/pytorch-gradual-warmup-lr) via TargetDiff | MIT, Copyright (c) 2019 **Ildoo Kim** | the file's own header |
+| `gated_energy_diffusion/utils/vina_types.py` | atom typing ported from AutoDock Vina `src/lib/atom_constants.h` | Apache-2.0 (Vina 1.2); GPL-2.0 in Vina 1.1.2 and earlier | upstream source tree |
+| `gated_energy_diffusion/utils/evaluation/{analyze,atom_num,atom_num_config,eval_atom_type,eval_bond_length,eval_bond_length_config,scoring_func}.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
+| `gated_energy_diffusion/utils/evaluation/sascorer.py`, `fpscores.pkl.gz` | RDKit Contrib `SA_Score` | **BSD-3-Clause**, Copyright (c) 2013 Novartis | header at `sascorer.py` end; `fpscores.pkl.gz` is byte-identical to RDKit's |
+| `scripts/data_preparation/clean_crossdocked.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
+| `configs/posebusters_dock_1thread.yml` | [PoseBusters](https://github.com/maabuu/posebusters) 0.6.5 `config/dock.yml`, with `num_threads: 1` | **BSD-3-Clause** | upstream `LICENSE` |
+| `bin/train.py`, `bin/sample.py` | entry points, partly derived from TargetDiff's | MIT | — |
+| `data/crossdocked_pocket10_pose_split.pt` | the train/test split published with [TargetDiff](https://github.com/guanjq/targetdiff), over [CrossDocked2020](https://bits.csb.pitt.edu/files/crossdock2020/) | split MIT (TargetDiff); underlying data **CC0 1.0** | upstream `LICIENCE`; dataset `LICENSE` |
+| `data/test_pocket_order.json` | the ligand filenames of that split's test subset, in split order | as the split above | derived here from the split |
 
 ## The GPL-2.0 file
 
@@ -49,9 +57,13 @@ a Creative Commons licence.
 
 ## External tools (invoked, not redistributed)
 
-These are installed by the user from their own upstreams; none of their terms propagate
-into this repository. Versions are pinned in `envs/` because the measurements depend on
-them, not for licensing reasons.
+These are installed by the user from their own upstreams. Versions are pinned in `envs/`
+because the measurements depend on them, not for licensing reasons.
+
+Two of them also appear in the per-file table above, because something derived from them is
+redistributed here: the atom typing in `utils/vina_types.py` is ported from AutoDock Vina's
+source, and `configs/posebusters_dock_1thread.yml` is PoseBusters' own `dock.yml` with one
+value changed.
 
 | Tool | Version | Licence |
 |---|---|---|
@@ -68,6 +80,20 @@ them, not for licensing reasons.
 Licences in this table are stated as commonly published for those projects and were not
 each re-verified against a primary source; only the redistributed files above were.
 
+## Redistributed data
+
+| What | Where | Licence |
+|---|---|---|
+| the split and the test pocket order | this repository, `data/` | see the per-file table above |
+| the summary result files | this repository, `results/` | CC-BY-4.0, as the data archive below |
+| trained weights, generated molecules, measurement outputs, evaluation receptors | [10.5281/zenodo.23029439](https://doi.org/10.5281/zenodo.23029439) | CC-BY-4.0, receptors CC0 |
+
+CC-BY-4.0 requires attribution when the data are reused. Cite the archive by its DOI.
+
 ## Restrictions on non-academic use
 
-None. The code is MIT (with the one GPL-2.0 file noted above) and the dataset is CC0.
+The code is MIT, with the one GPL-2.0 file noted above.
+
+`results/` also holds rows measured from generated molecules that other projects released.
+Those projects' own terms govern their released molecules, and they are not uniform. See the
+per-baseline table below.

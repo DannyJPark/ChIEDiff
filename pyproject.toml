@@ -8,6 +8,8 @@ version = "1.0.0"
 description = "Chemistry-gated interaction-energy diffusion for structure-based 3D molecular generation"
 readme = "README.md"
 requires-python = ">=3.9,<3.10"
+# MIT throughout, except gated_energy_diffusion/utils/reconstruct.py, which is GPL-2.0 and
+# keeps its own header. NOTICE.md records it and ships in the distribution.
 license = { file = "LICENSE" }
 keywords = [
     "structure-based drug design",
@@ -17,6 +19,9 @@ keywords = [
     "physics-informed learning",
 ]
 classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -27,6 +32,9 @@ classifiers = [
 # correctly from an index alone. Install the environment from envs/environment-train.yml
 # first, then `pip install -e .` into it.
 dependencies = [
+    # rdkit comes from pip in envs/environment-train.yml and the package imports it directly
+    # (utils/data.py, utils/reconstruct.py, utils/evaluation/*), so it belongs here.
+    "rdkit==2024.3.6",
     "numpy>=1.23,<1.24",   # load-bearing: utils/data.py uses np.long and np.bool,
                            # both removed in numpy 1.24
     "pandas==2.1.4",
@@ -51,11 +59,31 @@ wandb = ["wandb"]
 name = "Hyoungjoon Park"
 
 [[project.authors]]
+name = "Seungyeon Choi"
+
+[[project.authors]]
+name = "Hwanhee Kim"
+
+[[project.authors]]
+name = "Seungyong Lee"
+
+[[project.authors]]
+name = "Yoonju Kim"
+
+[[project.authors]]
+name = "Taeil Noh"
+
+[[project.authors]]
+name = "Minjae Lee"
+
+[[project.authors]]
 name = "Sanghyun Park"
 email = "sanghyun@yonsei.ac.kr"
 
 [project.urls]
 Homepage = "https://github.com/DannyJPark/ChIEDiff"
+Software-archive = "https://doi.org/10.5281/zenodo.23000086"
+Data-archive = "https://doi.org/10.5281/zenodo.23029439"
 
 [tool.setuptools.packages.find]
 include = ["gated_energy_diffusion*"]

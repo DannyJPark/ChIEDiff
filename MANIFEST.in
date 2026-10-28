@@ -1,0 +1,14 @@
+# The sdist carries the whole working release, not just the importable package: the README it
+# ships documents bin/, configs/ and scripts/, so leaving them out would make it incomplete.
+include LICENSE NOTICE.md CITATION.cff README.md MANIFEST.in
+include reproduction.ipynb Makefile
+recursive-include bin *.py *.sh
+recursive-include configs *.yml
+recursive-include scripts *.py
+recursive-include slurm *.sbatch
+recursive-include tools *.py
+recursive-include envs *.yml *.md
+recursive-include docs *.md
+recursive-include data *.md *.json *.pt
+recursive-include results *.csv *.gz *.sha256 *.md
+global-exclude __pycache__/* *.py[cod]
