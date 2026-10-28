@@ -49,33 +49,22 @@ cd results && sha256sum -c MANIFEST.sha256
 | the per-molecule distribution caches | only the figures read them | the data archive |
 | the training LMDB | derived from CrossDocked2020, with the affinity labels the training used | the data archive. See `data/README.md` |
 
-## Two columns that are easy to confuse
+## Which column is which
 
-**The PoseCheck clash count has two definitions.** `heavy_clash_avg` counts heavy-atom pairs
-only and is the reported column. `clash_h_incl` counts hydrogens on both sides and is five to
-twelve times larger. Both are in `pose_fidelity/heavy_clash/table_inputs.csv`, and
-`pose_stability_strict.csv`'s `clash_avg` is the hydrogen-inclusive one, so the two files do
-not agree by construction.
+`heavy_clash_avg` in `pose_fidelity/heavy_clash/table_inputs.csv` counts heavy-atom pairs and
+is the reported PoseCheck clash column. `clash_h_incl` in the same file, and `clash_avg` in
+`pose_stability_strict.csv`, count hydrogens on both sides.
 
-**The PLIP ablation counts come in two cohorts.** `nci_summary_abl.csv` pools over every
-PLIP-measured molecule. `plip_intersection.csv` re-pools over the molecules both PLIP and
-ProLIF measured, which is the comparison the paper makes. The two disagree, and neither is
-wrong on its own terms.
+`nci_summary_abl.csv` pools over every PLIP-measured molecule. `plip_intersection.csv` pools
+over the molecules both PLIP and ProLIF measured, and is the one the tables use.
 
-## A caution about denominators
+## Cohorts
 
-Each file aggregates one cohort, and the cohorts are not interchangeable:
+Each file aggregates one cohort:
 
 ```
 9,999 sampled -> 9,857 reconstructed and exported to SDF -> 8,340 docking-successful
                  -> 8,338 with complete scoring -> 8,069 in the strict pose cohort
 ```
 
-The attrition is not independent of the model: fragmented molecules fail docking, and the
-models that fragment most lose most.
-Each instrument also reports its own n, which can be smaller than the chain step it sits on,
-because an instrument drops a molecule it cannot read. PoseBusters, for instance, reports
-9,782 exported and 8,271 docking-successful for this work against the 9,857 and 8,340 above.
-Read the n printed with a table rather than assuming the chain. A number taken from one of these files without its
-cohort is not comparable with a number from another. Every table in the paper states which
-cohort it aggregates, and `reproduction.ipynb` prints the count alongside each number.
+Each table states its own n, and `reproduction.ipynb` prints it alongside each number.

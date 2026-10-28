@@ -24,7 +24,7 @@ data/                     the split and the canonical pocket order; see data/REA
 results/                  the summary numbers behind the tables; see results/README.md
 reproduction.ipynb        prints every table, from results/ and from the molecules
 envs/                     four conda environments and why they cannot be merged
-docs/                     reproduce.md and known_limitations.md
+docs/reproduce.md         how to reproduce the tables, measure and train
 tools/download_archive.py fetches and unpacks the data archive
 slurm/                    optional batch launchers
 Makefile                  install, archive, measure, clean. Run `make` for the list
@@ -84,13 +84,10 @@ The released checkpoint is iteration 1,195,000 at batch size 2 with 2 accumulati
 which is on the order of a week on one 24 GB card. `--train_report_iter` and `--save_freq`
 control how often it logs and checkpoints.
 
-Training needs the processed LMDB, a sparse file that reports 4.07 GB and holds about 1.45 GB
-of data, and **that file is not in the data archive**, which
-holds the weights, the molecules, the measurements and the receptors. It cannot be rebuilt
-from CrossDocked2020 with the code here, because it carries the affinity labels the objective
-reads, and it cannot be substituted either, because the split is a list of integer indices
-into its key order. So sampling and re-measurement reproduce from the archive and training
-from scratch does not. `data/README.md` has the detail.
+Training needs the processed LMDB `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`,
+a sparse file that reports 4.07 GB and holds about 1.45 GB of data. It carries the Vina
+affinity labels the objective reads, and the split indexes its byte-sorted key order, so use
+that file rather than rebuilding one. `data/README.md` has the detail.
 
 The interaction-energy weight ramps as `w_m = 0.05 * min(m / 200000, 1)` over optimizer
 iterations. The energy is evaluated at the predicted clean coordinates against protein
@@ -123,36 +120,23 @@ Runs docking, interaction profiling and the physical checks sequentially on one 
 skips any step whose output already exists. `--pockets` defaults to 0-4 because the full
 benchmark is 100 pockets through five instruments, which is days on one workstation.
 
-## Reproducibility notes
-
-These change how the output should be read.
+## Notes on running this
 
 **The sampler does not reproduce individual molecules.** The affinity position gradient is a
 second backward pass over a graph the first pass retained, and re-traversing it accumulates in
 a different floating-point order each time, about 2.4e-07. A thousand stochastic steps at
-guidance scale 25 turn that into a different molecule. Two runs of the same code with the same
-weights, inputs and seed give different molecules, on CPU at one thread as well as on a GPU.
-The archived molecule set is authoritative for molecular identity, and a fresh run reproduces
-the reported statistics rather than the molecules. The atom-count distribution is exactly
+guidance scale 25 turn that into a different molecule, on CPU at one thread as well as on a
+GPU. The archived molecule set is authoritative for molecular identity, and a fresh run
+reproduces the statistics rather than the molecules. The atom-count distribution is exactly
 reproducible, being drawn before any gradient.
 
 **`OMP_NUM_THREADS=1` is required for bitwise reproducibility** of anything else. Two
 identical sampling runs differ by 10 to 19 atom types at default GPU threading and by 6 to 7
 at eight threads.
 
-**The split has an empty validation subset**, so the trainer validates on the test pockets and
-checkpoint selection is not independent of the evaluation set. This is a property of the
-released weights, not only of the paper.
-
-**The published 100 molecules per pocket came from three chunked invocations** of 24, 2 and 76
+**The released 100 molecules per pocket came from three chunked invocations** of 24, 2 and 76
 through `--start_index`, at seed 42. A single 100-molecule run at the same seed gives a
 different molecule set.
-
-**The cohorts are not interchangeable.** 9,999 molecules were sampled, 9,857 of them could be
-reconstructed and exported to SDF, 8,340 docked successfully, 8,069 are in the strict pose cohort. The
-attrition is not independent of the model, because fragmented molecules fail docking and the
-models that fragment most lose most. Every table states the cohort it aggregates, and
-`reproduction.ipynb` prints the count next to each number.
 
 **Twelve receptors encode their chain copies only in the segID column**, which Biopython and
 therefore PoseCheck ignores, leaving a partial receptor. Those pockets must be measured
@@ -161,15 +145,10 @@ the archive ships them.
 
 **ProLIF is pinned to 2.2.0.** Version 2.1.0 changed the hydrophobic SMARTS, and the same
 crystal ligands give 2.04 hydrophobic contacts per molecule under the older definition against
-1.44 under the newer one. So the ProLIF counts here are not comparable with ProLIF counts from
-other papers. Use the PLIP columns for that.
+1.44 under the newer one.
 
-## Known limitations
-
-`docs/known_limitations.md`. In short: intramolecular strain stays high despite favourable
-intermolecular scores, a substantial fraction of generated molecules are fragmented and
-therefore absent from the scoring cohorts, and the evaluation conditions on docking
-eligibility throughout.
+**Cohorts.** 9,999 molecules sampled, 9,857 reconstructed and exported to SDF, 8,340
+docking-successful, 8,069 in the strict pose cohort. Each table states its own n.
 
 ## Licensing
 

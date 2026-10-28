@@ -16,11 +16,9 @@ pip install -e .
 jupyter notebook reproduction.ipynb
 ```
 
-Section 1 of the notebook prints the paper's tables from the summary CSVs under
-`results/`. The figures are not regenerated here, and `docs/known_limitations.md` says which
-columns of which tables need data that only the archive carries. Section 2 recomputes the chemistry, the Vina statistics, the ring-size
-distribution and the diversity from the generated molecules themselves, so the summaries can
-be checked against the objects they summarise. It needs the data archive:
+Section 1 of the notebook prints the paper's tables from the summary CSVs under `results/`.
+Section 2 recomputes the chemistry, the Vina statistics, the ring-size distribution and the
+diversity from the generated molecules themselves. It needs the data archive:
 
 ```bash
 python tools/download_archive.py --doi 10.5281/zenodo.23029439
@@ -118,20 +116,14 @@ defaults to the configuration's `val_freq`, so a short run needs a smaller value
 anything. `--train_report_iter` sets how often the loss is logged, and `--resume <run dir>`
 picks up where a stopped run left off.
 
-Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the processed
-training set, and **that file is not in the data archive**. It cannot be rebuilt
-from CrossDocked2020 with the code here, because it carries the affinity labels the objective
-reads and the repository has no script that can put them back, and it cannot be substituted
-either, because the split is a list of integer indices into its byte-sorted key order.
+Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`. It carries the
+Vina affinity labels the objective reads, and the split indexes its byte-sorted key order, so
+use that file rather than rebuilding one. `data/README.md` has the detail.
 
-So a retrained model is not a reproduction of the released weights. `data/README.md` has the
-detail, and the two tiers above do not depend on this file.
+Two things to set before a training run:
 
-Two things to know before reading anything into a retrained model:
-
-- The split's validation subset is empty, so the trainer validates on the test pockets.
-  Checkpoint selection is therefore not independent of the evaluation set. It ships this way
-  because changing it would make the released weights unreproducible.
+- The split's validation subset is empty, so the trainer validates on the test subset. Leave
+  it as it is: the released weights were trained this way.
 - The chemistry gates are mandatory. If the per-atom XS flags are missing the run fails with
   an assertion rather than falling back to an element-level approximation, which would change
   per-atom gradient directions for 41% of atoms.

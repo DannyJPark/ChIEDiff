@@ -51,31 +51,17 @@ assert derived == canon, 'the shipped pocket order does not match this LMDB'
 The downloader unpacks the two tarballs into those locations. Pass `--no-extract` to leave
 them packed.
 
-## The training LMDB is not in the archive
+## The training LMDB
 
-The archive holds the weights, the generated molecules, the measurements and the receptors.
-It does **not** hold `crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the processed
-training set.
-
-That file reports 4.07 GB but holds about 1.45 GB of data. LMDB preallocates its map and
+`crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb` is the processed training set.
+It reports 4.07 GB and holds about 1.45 GB of data, because LMDB preallocates its map and
 leaves the remainder of the file as a hole, so `ls` and `du --apparent-size` disagree with
-plain `du`, and it compresses to roughly 1.2 GB.
+plain `du`. It compresses to roughly 1.2 GB.
 
-So sampling from the released weights and re-measuring the molecules both work from the
-archive alone, and **training from scratch does not**.
-
-That file carries the Vina affinity labels the training objective reads, and those were
-written into it by an earlier run. The repository does not contain a script that can put them
-back, so it cannot be regenerated from CrossDocked2020 with what is here either.
-
-It also cannot be substituted. `crossdocked_pocket10_pose_split.pt` holds integer indices into
-the LMDB's key list, which is in byte-sorted order. A rebuilt LMDB that includes or skips even
-one record shifts every index, and training would proceed without complaint on a different
-split.
-
-So a retrained model is not a reproduction of the released weights. It is a model trained on
-the same corpus under the same configuration, with a split that cannot be guaranteed to be the
-same one.
+It carries the Vina affinity labels the training objective reads, so use this file rather than
+rebuilding one. `crossdocked_pocket10_pose_split.pt` holds integer indices into its key list,
+which is in byte-sorted order, so a rebuilt LMDB with a different record set shifts every
+index without raising an error.
 
 The underlying data are CrossDocked2020, which is public and CC0:
 <https://bits.csb.pitt.edu/files/crossdock2020/>. The split is the one introduced by
