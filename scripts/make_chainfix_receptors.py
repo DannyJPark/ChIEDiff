@@ -74,22 +74,23 @@ def main():
             "sha256": hashlib.sha256(text.encode()).hexdigest()}
         if h1 != k1:
             bad.append(rec)
-    # Copy the reference ligands across too. The export step reads the receptor AND the
-    # reference ligand from one --test_set root, so the output is only usable as a drop-in
-    # replacement if both are present.
-    n_lig = 0
-    for sdf in test_set.glob('*/*.sdf'):
-        dest = OUT / sdf.relative_to(test_set)
+    # Copy the other files each pocket needs, so this directory can be given to the export
+    # step as a whole. The reference ligand is the docking box, and the receptor PDBQT is
+    # what the AutoDock Vina arm reads. The PDBQT is taken unmodified: it carries atom types
+    # and coordinates with no chain semantics, so the chain remapping does not apply to it.
+    n_aux = 0
+    for aux in sorted(list(test_set.glob('*/*.sdf')) + list(test_set.glob('*/*.pdbqt'))):
+        dest = OUT / aux.relative_to(test_set)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(sdf, dest)
-        n_lig += 1
+        shutil.copyfile(aux, dest)
+        n_aux += 1
 
     (OUT / "manifest.json").write_text(json.dumps(
         {"source": "scripts/make_chainfix_receptors.py (plip_interactions.remap_chains)",
          "n_receptors": len(receptors), "receptors": report}, indent=1) + "\n")
     fixed = [r for r, v in report.items() if v["collisions_before"] > 0]
     relabeled = [r for r, v in report.items() if v["chain_column_changed"]]
-    print(f"{len(receptors)} receptors and {n_lig} ligand files written to {OUT}")
+    print(f"{len(receptors)} receptors and {n_aux} auxiliary files written to {OUT}")
     print(f"  had Biopython key collisions before: {len(fixed)}")
     for r in fixed:
         v = report[r]

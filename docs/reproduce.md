@@ -16,8 +16,9 @@ pip install -e .
 jupyter notebook reproduction.ipynb
 ```
 
-Section 1 of the notebook prints every table in the paper from the summary CSVs under
-`results/`. Section 2 recomputes the chemistry, the Vina statistics, the ring-size
+Section 1 of the notebook prints the paper's tables from the summary CSVs under
+`results/`. The figures are not regenerated here, and `docs/known_limitations.md` says which
+columns of which tables need data that only the archive carries. Section 2 recomputes the chemistry, the Vina statistics, the ring-size
 distribution and the diversity from the generated molecules themselves, so the summaries can
 be checked against the objects they summarise. It needs the data archive:
 

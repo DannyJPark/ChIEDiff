@@ -60,7 +60,7 @@ PoseCheck pull in two different RDKits, and both contribute numbers to the table
 jupyter notebook reproduction.ipynb
 ```
 
-Section 1 prints every table from the summary CSVs in `results/`. It needs pandas and takes
+Section 1 prints the tables from the summary CSVs in `results/`. It needs pandas and takes
 seconds. Section 2 recomputes the chemistry, the Vina statistics and the diversity from the
 generated molecules, which needs the data archive:
 

@@ -11,7 +11,7 @@ jupyter notebook reproduction.ipynb     # reads this directory; no GPU, no downl
 
 ## Integrity
 
-`MANIFEST.sha256` covers the 18 data files here, in `sha256sum` format:
+`MANIFEST.sha256` covers the 22 data files here, in `sha256sum` format:
 
 ```bash
 cd results && sha256sum -c MANIFEST.sha256
@@ -22,6 +22,7 @@ cd results && sha256sum -c MANIFEST.sha256
 | File | Holds |
 |---|---|
 | `comparison/f1_sbdd/main_table/main_table.csv` | Vina score, minimize and dock per model, the score-dock gap, diversity |
+| `comparison/f2_pose_fidelity/redocking_consistency/redocking_consistency.csv` | the score-to-dock gap and redocking RMSD per engine, one run per engine block |
 | `comparison/f2_pose_fidelity/pose_stability/pose_stability_strict.csv` | redocking RMSD on the strict pose cohort |
 | `comparison/f2_pose_fidelity/pose_stability/pose_stability_engineonly.csv` | the same on the RMSD-complete cohort, as a sensitivity check |
 | `comparison/f3_nci/nci_summary_strict.csv` | interaction counts per molecule, PLIP and ProLIF |
@@ -34,6 +35,9 @@ cd results && sha256sum -c MANIFEST.sha256
 | `comparison/f4_delta_score/delta_score_per_mol.csv.gz` | one row per molecule for the specificity analysis, which is re-aggregated with and without clipping |
 | `diagnostics/ablation_nci/nci_summary_abl.csv` | the PLIP and ProLIF ablation arms |
 | `diagnostics/ablation_nci_v2/posecheck_ablation_all.csv` | the ProLIF and PoseCheck ablation arms |
+| `pose_fidelity/heavy_clash/table_inputs.csv` | PoseCheck clash counts, heavy-atom-only and hydrogen-inclusive, per table and cohort |
+| `diagnostics/ablation_nci_v2/dock_success.csv` | the docking yield of each ablation arm |
+| `diagnostics/ablation_nci_v2/plip_intersection.csv` | PLIP counts re-pooled on the molecules both instruments measured |
 | `diagnostics/type_cf/pocket{0..4}.csv` | the atom-type substitution diagnostic |
 
 ## What is not here
@@ -44,6 +48,19 @@ cd results && sha256sum -c MANIFEST.sha256
 | the per-molecule measurement CSVs and PLIP JSONL | intermediate; the files above are their summary | the data archive, or regenerate with `bin/measure.sh` |
 | the per-molecule distribution caches | only the figures read them | the data archive |
 | the training LMDB | derived from CrossDocked2020, with the affinity labels the training used | the data archive. See `data/README.md` |
+
+## Two columns that are easy to confuse
+
+**The PoseCheck clash count has two definitions.** `heavy_clash_avg` counts heavy-atom pairs
+only and is the reported column. `clash_h_incl` counts hydrogens on both sides and is five to
+twelve times larger. Both are in `pose_fidelity/heavy_clash/table_inputs.csv`, and
+`pose_stability_strict.csv`'s `clash_avg` is the hydrogen-inclusive one, so the two files do
+not agree by construction.
+
+**The PLIP ablation counts come in two cohorts.** `nci_summary_abl.csv` pools over every
+PLIP-measured molecule. `plip_intersection.csv` re-pools over the molecules both PLIP and
+ProLIF measured, which is the comparison the paper makes. The two disagree, and neither is
+wrong on its own terms.
 
 ## A caution about denominators
 

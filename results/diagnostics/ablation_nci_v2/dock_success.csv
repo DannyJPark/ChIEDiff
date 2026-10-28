@@ -1,0 +1,17 @@
+id,n_budget,n_generated,n_docked,dock_success_pct,excluded_pockets,denominator_basis,source
+novdw,2400,2400,2054,85.5833,,raw sampler outputs in docked pockets (results/novdw_gen/id*/result_*.pt),results/novdw_gen/novdw_gen_vina_docked.pt
+abl_none_off,2400,2400,2098,87.4167,,raw sampler outputs in docked pockets (results/abl_none_off/id*/result_*.pt),results/abl_none_off/abl_none_off_vina_docked.pt
+ours_vina,10000,9999,8340,83.4083,,records in consolidated .pt (failures retained),results/vina_fixed_best_gen/vina_fixed_best_vina_docked.pt
+ours_noguide,2400,2400,2145,89.3750,,raw sampler outputs in docked pockets (results/noguide/vina_fixed_best_noguide/id*/result_*.pt),results/noguide/vina_fixed_best_noguide/noguide_merged_vina_docked.pt
+abl_vdw_on,2400,2352,1954,83.0782,50:no_samples;51:not_docked,raw sampler outputs in docked pockets (results/abl_vdw_on/id*/result_*.pt),results/abl_vdw_on/abl_vdw_on_vina_docked.pt
+abl_vdw_off,2400,2400,2159,89.9583,,raw sampler outputs in docked pockets (results/abl_vdw_off/id*/result_*.pt),results/abl_vdw_off/abl_vdw_off_vina_docked.pt
+abl_hbond_on,2400,2400,1224,51.0000,,raw sampler outputs in docked pockets (results/abl_hbond_on/id*/result_*.pt),results/abl_hbond_on/abl_hbond_on_vina_docked.pt
+abl_hbond_off,2400,2400,1402,58.4167,,raw sampler outputs in docked pockets (results/abl_hbond_off/id*/result_*.pt),results/abl_hbond_off/abl_hbond_off_vina_docked.pt
+abl_hydro_on,2400,2400,2107,87.7917,,raw sampler outputs in docked pockets (results/abl_hydro_on/id*/result_*.pt),results/abl_hydro_on/abl_hydro_on_vina_docked.pt
+abl_hydro_off,2400,2376,2225,93.6448,95:no_samples,raw sampler outputs in docked pockets (results/abl_hydro_off/id*/result_*.pt),results/abl_hydro_off/abl_hydro_off_vina_docked.pt
+abl_vdw_hbond_on,2400,2376,1993,83.8805,25:no_samples,raw sampler outputs in docked pockets (results/abl_vdw_hbond_on/id*/result_*.pt),results/abl_vdw_hbond_on/abl_vdw_hbond_on_vina_docked.pt
+abl_vdw_hbond_off,2400,2400,2085,86.8750,,raw sampler outputs in docked pockets (results/abl_vdw_hbond_off/id*/result_*.pt),results/abl_vdw_hbond_off/abl_vdw_hbond_off_vina_docked.pt
+abl_vdw_hydro_on,2400,2400,1902,79.2500,,raw sampler outputs in docked pockets (results/abl_vdw_hydro_on/id*/result_*.pt),results/abl_vdw_hydro_on/abl_vdw_hydro_on_vina_docked.pt
+abl_vdw_hydro_off,2400,2400,2071,86.2917,,raw sampler outputs in docked pockets (results/abl_vdw_hydro_off/id*/result_*.pt),results/abl_vdw_hydro_off/abl_vdw_hydro_off_vina_docked.pt
+abl_hbond_hydro_on,2400,2400,1198,49.9167,,raw sampler outputs in docked pockets (results/abl_hbond_hydro_on/id*/result_*.pt),results/abl_hbond_hydro_on/abl_hbond_hydro_on_vina_docked.pt
+abl_hbond_hydro_off,2400,2400,1433,59.7083,,raw sampler outputs in docked pockets (results/abl_hbond_hydro_off/id*/result_*.pt),results/abl_hbond_hydro_off/abl_hbond_hydro_off_vina_docked.pt
