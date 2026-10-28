@@ -26,7 +26,7 @@ molecules are disconnected fragments, and connectivity and docking eligibility s
 cohorts are therefore systematically the ones the energy term damaged.
 
 This is the central caveat on every comparison in the paper. A single intersection makes
-measurements comparable *within* a table; it does not recover the missing generation
+measurements comparable *within* a table. It does not recover the missing generation
 denominator or remove the selection bias.
 
 Some baseline sample files record no failed generation at all, so a connectivity rate of
@@ -70,20 +70,19 @@ identical weights, inputs and seeds. Measured directly:
 |---|---|
 | the same model instance, called twice | 2.38e-07 |
 | two instances of the same class | 2.38e-07 |
-| the released code against the original | 2.68e-07 |
+| two processes with the same weights, inputs and seed | 2.68e-07 |
 
 The forward pass is bit-identical in every case. The position gradient is the second of two
 backward passes over a graph the first call retained, and re-traversing that graph accumulates
 in a different float order each time. Over 1000 stochastic steps with a coordinate guidance
-scale of 25, that difference grows into a different molecule — the original implementation's
-own source comment says exactly this.
+scale of 25, that difference grows into a different molecule.
 
 Consequence: **running the same code twice produces different molecules.** The archived
-molecule set is the authoritative record of identity; a fresh run reproduces the reported
-statistics, not the molecules. This is a property of the method as published, not of this
-release, and the equivalence tests in `scripts/verify_sampling_equivalence.py` are written
-around it: they compare the release against the reference's own run-to-run spread rather than
-demanding an identity the reference cannot deliver.
+molecule set is the authoritative record of identity, and a fresh run reproduces the reported
+statistics rather than the molecules. This is a property of the method as published. The
+equivalence checks behind the table above were written around it, comparing run-to-run spread
+instead of demanding an identity the method cannot deliver, and they are not part of this
+repository.
 
 The atom-count distribution *is* exactly reproducible, because it is drawn from the
 pocket-size prior before any gradient is taken.
@@ -91,16 +90,15 @@ pocket-size prior before any gradient is taken.
 ### The GPU that produced the published samples is unrecorded
 
 No Slurm log survives for the production sampling run, and the sampler logged only its
-arguments — no node name, no device name. The launcher fans out across several GPU models,
-so the published cohort may not even be a single-device product.
+arguments, with no node name and no device name. The launcher fans out across several GPU
+models, so the published cohort may not even be a single-device product.
 
 Consequence: **bitwise reproduction of the published molecules is not claimed.** The
-equivalence tests in this repository prove that the released code matches the original code
-on the same device; they cannot prove the released code reproduces the archived molecule
-identities. The archived samples are authoritative for identity; a fresh run reproduces the
-statistics.
+equivalence checks were run on one device, and nothing establishes that a run on another
+device reproduces the archived molecule identities. The archived samples are authoritative
+for identity, and a fresh run reproduces the statistics.
 
-Both launchers in `slurm/` now log `nvidia-smi -L`. That line is the fix for next time.
+Both launchers in `slurm/` log `nvidia-smi -L`, so a new run records the device it used.
 
 ### Bitwise reproducibility needs a single thread
 
@@ -116,8 +114,8 @@ stream differently and yields a different molecule set.
 
 ### Two RDKits, two protonation backends
 
-PoseBusters resolves RDKit 2026.03.3 and PoseCheck resolves 2026.03.4; both contribute cells
-to the tables. Separately, protonation is **not** performed by one shared tool: PoseCheck
+PoseBusters resolves RDKit 2026.03.3 and PoseCheck resolves 2026.03.4, and both contribute
+cells to the tables. Separately, protonation is **not** performed by one shared tool: PoseCheck
 shells out to `hydride` (it hardcodes that command and ignores its own `reduce_path`
 argument) while PLIP delegates to Open Babel. The two instruments therefore disagree on
 absolute interaction counts by construction.
@@ -136,7 +134,7 @@ arm for cross-paper comparison.
 ### Baseline generations are not redistributed
 
 Six of the nine compared models' molecule sets are those papers' own released generations,
-used unmodified. They are not in this repository or its archive; get them from their
+used unmodified. They are not in this repository or its archive, so get them from their
 publications. The aggregate CSVs derived from them **are** shipped, which is what lets the
 tables regenerate without them.
 
@@ -145,8 +143,8 @@ tables regenerate without them.
 ### The figures are not regenerated here
 
 `reproduction.ipynb` prints the tables. The figures were produced by separate generators that
-are not part of this release, and one of them, the method-overview schematic, was authored by
-hand in presentation software and cannot be regenerated from code at all.
+are not part of this repository, and one of them, the method-overview schematic, was authored
+by hand in presentation software and cannot be regenerated from code at all.
 
 ### The notebook checks the tables, not the manuscript
 
@@ -157,5 +155,5 @@ match those tables, because the manuscript source is not in this repository.
 ### One GPL-2.0 file inside an MIT repository
 
 `gated_energy_diffusion/utils/reconstruct.py` is GPL-2.0 and is required for the evaluation
-pipeline. It keeps its own licence header. See `NOTICE.md`; this mirrors the upstream
-project's own arrangement, which is not the same as being free of tension.
+pipeline. It keeps its own licence header. See `NOTICE.md`. The arrangement mirrors that of
+the project the file comes from, which is not the same as being free of tension.

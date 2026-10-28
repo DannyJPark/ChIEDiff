@@ -2,17 +2,16 @@
 """
 PoseCheck evaluation of one pocket: clashes, strain energy, and protein-ligand interactions.
 
-These are the three metrics the CBYG paper reports in its Table 5 (labelled "Posebusters" there, but
-its own text and reference [24] identify them as PoseCheck). They are NOT what our existing
-eval_out/*/posebusters/ CSVs measure: PoseBusters' `internal_steric_clash` is a boolean on
-INTRA-ligand overlap and its `internal_energy` is a pass/fail, whereas PoseCheck counts
-PROTEIN-ligand clashes and returns a strain energy in kcal/mol.
+These three metrics are not what the PoseBusters CSVs under <dir>/posebusters/ measure.
+PoseBusters' `internal_steric_clash` is a boolean on intra-ligand overlap and its
+`internal_energy` is a pass or fail, whereas PoseCheck counts protein-ligand clashes and returns
+a strain energy in kcal/mol.
 
-Run from the repo root with the `posecheck` env's interpreter -- its rdkit is far newer than the
-project's and must not leak into `kgdiff`:
+Run from the repo root with the ged-posecheck interpreter. Its RDKit is much newer than the
+training environment's and must not leak into it.
 
     "$CONDA_BASE/envs/ged-posecheck/bin/python" scripts/eval_posecheck.py \
-        --dir eval_out/vina_fixed --pocket 0
+        --dir eval_out/mymodel --pocket 0
 
 Input  : <dir>/manifest.csv (pocket_idx,pocket,receptor,n_mols,ref_ligand) + <dir>/sdf/pocket<NNN>.sdf
 Output : <dir>/posecheck/pocket<NNN>.csv          molecule,clashes,strain_energy,n_interactions,<per-type>
@@ -20,13 +19,13 @@ Output : <dir>/posecheck/pocket<NNN>.csv          molecule,clashes,strain_energy
 
 Concurrency model
 -----------------
-Loading the receptor costs ~13 s (PoseCheck shells out to `reduce` to protonate it), while a
-molecule costs ~6 s -- dominated by the strain-energy force-field relaxation. So the receptor is
-loaded ONCE in the parent and molecules are evaluated in forked children, which inherit the loaded
-PoseCheck object copy-on-write: no reload, and a molecule that hangs the FF relaxation only kills
-its own child. That hazard is real -- the same class of relaxation already stalled whole pockets in
-the PoseBusters runs -- so every child gets a hard timeout and timed-out molecules are recorded in a
-sidecar file rather than silently dropped.
+Loading the receptor costs about 13 s, because PoseCheck shells out to protonate it, while a
+molecule costs about 6 s, dominated by the strain-energy force-field relaxation. The receptor is
+therefore loaded once in the parent and molecules are evaluated in forked children, which inherit
+the loaded PoseCheck object copy-on-write. There is no reload, and a molecule that hangs the
+force-field relaxation only kills its own child. That relaxation can stall on a pathological
+molecule, so every child gets a hard timeout and timed-out molecules are recorded in a sidecar
+file rather than silently dropped.
 """
 import argparse
 import csv
@@ -39,10 +38,11 @@ from rdkit import Chem, RDLogger
 
 RDLogger.DisableLog('rdApp.*')
 
-# PoseCheck protonates the receptor by shelling out to `hydride` (it hardcodes the command and
-# ignores its own reduce_path argument), so that binary must be on PATH. We are invoked by absolute
-# interpreter path rather than `conda activate` -- deliberately, to keep this env's much newer rdkit
-# out of the project env -- which leaves the env's bin/ off PATH. Put it back, for this process only.
+# PoseCheck protonates the receptor by shelling out to `hydride`, a command it hardcodes while
+# ignoring its own reduce_path argument, so that binary must be on PATH. This script is invoked by
+# absolute interpreter path rather than through `conda activate`, which keeps this environment's
+# much newer RDKit out of the training environment but also leaves this environment's bin/ off
+# PATH. Put it back, for this process only.
 _ENV_BIN = os.path.join(os.path.dirname(os.path.abspath(sys.executable)))
 os.environ['PATH'] = _ENV_BIN + os.pathsep + os.environ.get('PATH', '')
 
@@ -60,12 +60,12 @@ def _patch_prolif_vdwradii():
 
     def load_protein_prolif(protein_path):
         u = mda.Universe(protein_path)
-        # prolif triggers guess_bonds() internally with no vdwradii, which is what raises on CO;
-        # precompute the bonds here with the override so the internal call finds them already set.
+        # prolif triggers guess_bonds() internally with no vdwradii, which is what raises on CO.
+        # Precompute the bonds here with the override so the internal call finds them already set.
         u.atoms.guess_bonds(vdwradii=extra)
-        # Some receptors number residues from a negative value (e.g. -2); prolif casts residue
-        # numbers to uint32 and overflows. Shift resids so the minimum is 1 -- identity is unchanged,
-        # only the integer label moves.
+        # Some receptors number residues from a negative value such as -2, and prolif casts
+        # residue numbers to uint32 and overflows. Shift resids so the minimum is 1. Residue
+        # identity is unchanged and only the integer label moves.
         try:
             resids = u.residues.resids
             if resids.min() < 1:
@@ -80,18 +80,19 @@ def _patch_prolif_vdwradii():
 _patch_prolif_vdwradii()
 
 
-# The patch above only fixes PROTEIN LOADING (MDAnalysis guess_bonds). prolif's VdWContact
-# interaction keeps its OWN radius table, so a receptor with a real metal (4keu / pocket 027 has
-# two cobalt ions in its binuclear centre) still aborts every molecule at calculate_interactions()
-# with "van der Waals radius for atom 'Co' not found", leaving an empty pocket CSV. PoseCheck
-# builds its fingerprint as a bare plf.Fingerprint(), so supply the metal radii via `parameters`.
-# Purely additive: an atom whose radius was already known is unaffected, so molecules that used to
-# succeed stay bit-identical -- only ones that used to RAISE now produce a result.
+# The patch above only fixes protein loading through MDAnalysis guess_bonds. prolif's VdWContact
+# interaction keeps its own radius table, so a receptor with a real metal, such as 4keu at pocket
+# 027 with two cobalt ions in its binuclear centre, still aborts every molecule at
+# calculate_interactions() with "van der Waals radius for atom 'Co' not found" and leaves an empty
+# pocket CSV. PoseCheck builds its fingerprint as a bare plf.Fingerprint(), so the metal radii go
+# in through `parameters`. The change is purely additive. An atom whose radius was already known
+# is unaffected, so molecules that already succeeded stay bit-identical and only the ones that
+# raised now produce a result.
 def _patch_prolif_vdwcontact():
     import prolif as plf
     import posecheck.posecheck as _pcmod
     from posecheck.utils import interactions as _inter
-    # element-symbol keys (prolif reports 'Co'); upper-case duplicates for safety
+    # element-symbol keys, since prolif reports 'Co', plus upper-case duplicates for safety
     radii = {'Co': 2.00, 'Zn': 1.39, 'Fe': 1.80, 'Mn': 1.80, 'Ni': 1.63, 'Cu': 1.40,
              'Mg': 1.73, 'Ca': 2.31, 'Na': 2.27, 'K': 2.75, 'Cd': 1.58, 'Hg': 1.55}
     radii.update({k.upper(): v for k, v in list(radii.items())})
@@ -102,12 +103,12 @@ def _patch_prolif_vdwcontact():
         return fp.to_dataframe()
 
     _inter.generate_interaction_df = generate_interaction_df
-    _pcmod.generate_interaction_df = generate_interaction_df   # imported by name at posecheck.py:10
+    _pcmod.generate_interaction_df = generate_interaction_df   # posecheck imports it by name too
 
 
 _patch_prolif_vdwcontact()
 
-# Loaded once in the parent; forked children inherit it without re-running `reduce`.
+# Loaded once in the parent. Forked children inherit it without protonating the receptor again.
 _PC = None
 
 
@@ -118,8 +119,8 @@ def _eval_one(mol, q):
         clashes = _PC.calculate_clashes()[0]
         strain = _PC.calculate_strain_energy()[0]
         inter = _PC.calculate_interactions()
-        # prolif returns a one-row frame whose columns are (ligand, residue, interaction-type);
-        # collapse to a total plus a per-type breakdown so we can see WHICH interactions change.
+        # prolif returns a one-row frame whose columns are (ligand, residue, interaction-type).
+        # Collapse it to a total plus a per-type breakdown, which shows which interactions change.
         per_type = {}
         for col in inter.columns:
             itype = col[-1] if isinstance(col, tuple) else str(col)
@@ -132,8 +133,8 @@ def _eval_one(mol, q):
 def evaluate_pocket(pc, mols, names, timeout, workers):
     """Evaluate every molecule with bounded concurrency and a per-molecule timeout.
 
-    Returns (rows, timed_out_names, failed). `rows` are dicts; molecules that time out or raise are
-    excluded from `rows` and reported separately so they are never silently averaged away.
+    Returns (rows, timed_out_names, failed). `rows` are dicts. Molecules that time out or raise
+    are excluded from `rows` and reported separately, so they are never silently averaged away.
     """
     global _PC
     _PC = pc

@@ -26,6 +26,8 @@ eval_plip/
 # Downloaded archive contents: weights, molecules, receptors and the training LMDB.
 # tools/download_archive.py populates these. They carry their own DOI.
 archive/
+data/test_set
+data/test_set_chainfix
 
 # Notebook state
 .ipynb_checkpoints/

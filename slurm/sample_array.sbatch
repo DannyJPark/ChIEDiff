@@ -21,9 +21,10 @@
 # Re-runnable: a pocket whose id{N}/result_<first>.pt already exists is skipped, so a
 # preempted or partially completed array resumes cleanly. FORCE=1 to redo.
 #
-# The archived cohort was generated in three chunks of 24, then 2, then 76, using
-# START_INDEX. A single 100-molecule run at the same seed produces a different molecule set,
-# and the sampler does not reproduce individual molecules. See the reproducibility notes in README.md.
+# The archived cohort was generated in three chunks of 24, then 2, then 76, using START_INDEX.
+# A single 100-molecule run at the same seed consumes the random stream differently and produces
+# a different molecule set, and the sampler does not reproduce individual molecules either way.
+# See the reproducibility notes in README.md.
 # =========================================================================
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-.}"
@@ -47,14 +48,12 @@ if [ "${BITWISE:-1}" = "1" ]; then
     export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 fi
 
-# Preflight. A GPU node can be left in a broken CUDA state where torch.cuda.is_available() is
-# False and nvidia-smi reports "Unknown Error". A task landing there fails within seconds at
-# checkpoint load, and a task that fails that fast drains the whole array through that one
-# node. Detect the condition, exclude the node, and requeue this task so it reschedules
-# elsewhere. The affected nodes vary over time, so a static exclude list does not replace
-# this check.
+# Preflight. A node can present a GPU that torch cannot use, so a task landing there would fail
+# within seconds at checkpoint load. Detect that, exclude the node, and requeue this task so it
+# reschedules elsewhere. Which nodes are affected changes over time, so a static exclude list
+# does not replace the check.
 if ! python -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
-    echo "[sample] CUDA unavailable on ${SLURMD_NODENAME} -> exclude node + requeue this task"
+    echo "[sample] no usable GPU on ${SLURMD_NODENAME} -> exclude node and requeue this task"
     scontrol update JobId="${SLURM_JOB_ID}" ExcludeNodes="${SLURMD_NODENAME}" 2>/dev/null || true
     scontrol requeue "${SLURM_JOB_ID}" 2>/dev/null || true
     sleep 20      # avoid a tight requeue loop if the scheduler re-lands us immediately

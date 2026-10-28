@@ -1,33 +1,36 @@
 #!/usr/bin/env python3
 """Self-redock each CrossDocked crystal ligand into its own receptor and measure
-RMSD(crystal pose, redocked pose). This is the achievable ceiling of the pipeline: if an
-engine cannot reproduce the known crystal pose, a generated pose cannot beat that.
+RMSD(crystal pose, redocked pose). This is the achievable ceiling of the pipeline, because if
+an engine cannot reproduce the known crystal pose, a generated pose cannot beat that.
+
+This is an optional control. No step of bin/measure.sh runs it.
 
     python scripts/self_redock.py --manifest eval_out/mymodel/manifest.csv --pocket 0
 
 Same protocol as the generated-molecule redock:
   smina/vinardo/gnina : --autobox_ligand <crystal> --exhaustiveness 8 --num_modes 1 --seed 42
   vina_meeko          : crystal-ligand-centred 20A cube, exhaustiveness 16, meeko atom map
-`vinardo` is smina with --scoring vinardo, so it is the same binary, search, box and seed and
+`vinardo` is smina with --scoring vinardo, so it is the same binary, search, box and seed, and
 the ceiling row isolates the scoring function exactly as the model rows do.
 
 RMSD is rdMolAlign.CalcRMS, non-superposed and symmetry-aware, as everywhere else.
 
 Sanitisation has to match the model rows arm by arm. CalcRMS matches on element and bond
 order, so whether RDKit perceived aromaticity decides whether an exact graph match exists at
-all:
+all. The conventions are:
     smina/gnina  (pose_rmsd.py)       reference sanitize=False, docked SDF sanitize=False
     Vina         (vina_meeko_dock.py) reference sanitize=True, meeko mol in memory
-Reading the reference sanitised and the smina/gnina output unsanitised is a third convention,
-and aromatic-versus-Kekule then blocks the exact match and forces the skeleton-isomorphism
-fallback, which biases RMSD downward and measures the ceiling on a more permissive instrument
-than the models it bounds. So crystal_raw (sanitize=False) is the reference for smina/gnina
-and crystal (sanitised) for meeko. sanitize=True cannot be dropped everywhere, because meeko
-needs it: unsanitised input gives non-finite Gasteiger charges and writes no PDBQT.
+Reading the reference sanitised and the smina or gnina output unsanitised would be a third
+convention. Aromatic against Kekule then blocks the exact match and forces the
+skeleton-isomorphism fallback, which biases RMSD downward and measures the ceiling on a more
+permissive instrument than the models it bounds. So crystal_raw, read with sanitize=False, is
+the reference for smina and gnina, and crystal, read sanitised, is the reference for meeko.
+sanitize=True cannot be dropped everywhere, because meeko needs it. Unsanitised input gives
+non-finite Gasteiger charges and writes no PDBQT.
 
-Docked poses are kept (--pose_dir) so RMSD can be recomputed without re-docking.
+Docked poses are kept under --pose_dir so RMSD can be recomputed without re-docking.
 
-One pocket per invocation; writes or updates <out>/pocketNNN.csv.
+One pocket per invocation. Writes or updates <out>/pocketNNN.csv.
 """
 import argparse, csv, os, shutil, subprocess, sys, tempfile
 import numpy as np
@@ -35,7 +38,7 @@ from rdkit import Chem, RDLogger
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rmsd_core import rmsd_best_effort, heavy, coords
 RDLogger.DisableLog('rdApp.*')
-# smina and gnina are installed from their own upstreams; override with $SMINA / $GNINA.
+# smina and gnina are installed from their own projects. Override with $SMINA and $GNINA.
 SMINA = os.environ.get('SMINA') or shutil.which('smina') or os.path.expanduser('~/bin/smina')
 GNINA = os.environ.get('GNINA') or shutil.which('gnina') or os.path.expanduser('~/bin/gnina')
 
@@ -45,9 +48,9 @@ def manifest_row(manifest, pocket):
     return None
 
 def rmsd_to_crystal(crystal_raw, docked_sdf):
-    """smina/gnina arm. BOTH sides unsanitised == pose_rmsd.py's convention, so the reference row
-    is measured on the same instrument as the model rows. crystal_raw must be the sanitize=False
-    read of the reference ligand."""
+    """smina/gnina arm. Both sides are unsanitised, which is pose_rmsd.py's convention, so the
+    reference row is measured on the same instrument as the model rows. crystal_raw must be the
+    sanitize=False read of the reference ligand."""
     d=next(iter(Chem.SDMolSupplier(docked_sdf, sanitize=False, removeHs=False)), None)
     if d is None: return None,'noread'
     r,meth,_=rmsd_best_effort(heavy(d), heavy(crystal_raw))
@@ -77,20 +80,21 @@ def vina_meeko_self(crystal, receptor_pdbqt, ref_centroid, out_sdf):
     v.dock(exhaustiveness=16,n_poses=1)
     aff=float(v.energies(n_poses=1)[0][0])
     back=RDKitMolCreate.from_pdbqt_mol(PDBQTMolecule(v.poses(n_poses=1),skip_typing=True))[0]
-    # record the affinity on the pose, so the REFERENCE row can carry an AutoDock Vina column in
+    # Record the affinity on the pose, so the reference row can carry an AutoDock Vina column in
     # the redocking comparison exactly as it carries smina-Vinardo and gnina.
-    # The SD tag name matches smina/gnina ('minimizedAffinity') so one reader handles all three.
+    # The SD tag name matches smina and gnina ('minimizedAffinity'), so one reader handles all three.
     back.SetProp('minimizedAffinity', f'{aff:.5f}')
     w=Chem.SDWriter(out_sdf); w.write(back); w.close()
-    # return the IN-MEMORY mol: vina_meeko_dock.py compares against this object, not against a
-    # re-read of the SDF, so returning it keeps the reference row on the identical instrument.
+    # Return the in-memory mol. vina_meeko_dock.py compares against this object rather than
+    # against a re-read of the SDF, so returning it keeps the reference row on the same
+    # instrument.
     return back
 
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--pocket',type=int,required=True)
     ap.add_argument('--manifest',default='eval_out/native/manifest.csv',
-                    help='any manifest.csv from eval_export_sdf: only receptor and ref_ligand are read')
+                    help='any manifest.csv from eval_export_sdf.py, read only for receptor and ref_ligand')
     ap.add_argument('--engines',default='smina,vinardo,gnina,vina_meeko')
     ap.add_argument('--out',default='self_redock')
     ap.add_argument('--pose_dir',default='',help='keep the docked poses here (default <out>/poses)')
@@ -99,9 +103,9 @@ def main():
     if r is None: print(f'pocket {a.pocket} not in manifest'); return 0
     receptor=r['receptor'].strip(); ref=r['ref_ligand'].strip()
     receptor_pdbqt=receptor[:-4]+'.pdbqt'
-    # TWO reads of the same reference ligand -- see the module docstring. `crystal` is the
-    # sanitised one (meeko needs it); `crystal_raw` is the RMSD reference for smina/gnina so that
-    # arm is F/F exactly like pose_rmsd.py.
+    # Two reads of the same reference ligand, as the module docstring explains. `crystal` is the
+    # sanitised one, which meeko needs. `crystal_raw` is the RMSD reference for smina and gnina,
+    # so that arm has both sides unsanitised exactly as pose_rmsd.py does.
     crystal=next(iter(Chem.SDMolSupplier(ref, removeHs=False)), None)
     crystal_raw=next(iter(Chem.SDMolSupplier(ref, sanitize=False, removeHs=False)), None)
     if crystal is None or crystal_raw is None:
@@ -131,7 +135,7 @@ def main():
             if back is None:
                 rm,meth=None,'fail'
             else:
-                # T/T, in memory -- identical to vina_meeko_dock.py:207
+                # both sides sanitised and in memory, as in vina_meeko_dock.py
                 rm,meth,_=rmsd_best_effort(heavy(back), heavy(crystal))
         except Exception as e:
             rm,meth=None,f'exc:{type(e).__name__}'

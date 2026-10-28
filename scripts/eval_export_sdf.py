@@ -8,16 +8,16 @@ Writes:
     <out>/sdf/pocket<NNN>.sdf   one multi-model SDF per pocket, mols named p<NNN>_m<MMMM>
     <out>/manifest.csv          pocket_idx, pocket, receptor, n_mols, ref_ligand
 
-The mol name p<NNN>_m<MMMM> carries the pocket index and the ORIGINAL index inside that pocket's
-list, so gnina / smina / PoseBusters rows can be joined straight back onto the source .pt even
-though mols that fail to load are skipped. All three tools preserve the SDF title line.
+The mol name p<NNN>_m<MMMM> carries the pocket index and the molecule's own index inside that
+pocket's list, so gnina, smina and PoseBusters rows can be joined straight back onto the source
+.pt even though mols that fail to load are skipped. All three tools preserve the SDF title line.
 
-ref_ligand is the crystal ligand for that pocket; the docking modes use it as the box
+ref_ligand is the crystal ligand for that pocket. The docking modes pass it as the box
 (--autobox_ligand), which is what "redock into the known pocket" means here.
 
 Usage:
     python scripts/eval_export_sdf.py --pt archive/chiediff_generated_molecules.pt \
-        --out eval_gnina/targetdiff
+        --out eval_out/mymodel
 """
 import argparse
 import csv
@@ -43,10 +43,10 @@ def paths_for(ligand_filename, test_set_root):
 def _torch_load(path):
     """Load a sampling .pt under either torch generation.
 
-    These files were written in the kgdiff env (torch 1.11), whose `torch.load` has no
-    `weights_only` kwarg. torch >= 2.6 defaults it to True and then refuses to unpickle the
-    `rdkit.Chem.rdchem.Mol` / `numpy.core.multiarray.scalar` globals inside them, raising
-    UnpicklingError -- so the ordering must be try-new-kwarg-first, never the reverse.
+    These files were written in the training environment, whose torch 1.11 `torch.load` has no
+    `weights_only` kwarg. torch 2.6 and later default it to True and then refuse to unpickle the
+    `rdkit.Chem.rdchem.Mol` and `numpy.core.multiarray.scalar` globals inside them, raising
+    UnpicklingError. The new kwarg therefore has to be tried first, never the other way round.
     """
     try:
         return torch.load(path, map_location='cpu', weights_only=False)
@@ -55,29 +55,30 @@ def _torch_load(path):
 
 
 def load_grouped(path):
-    """Normalise the three .pt layouts in this repo to list[pocket] of list[mol_dict].
+    """Normalise the three .pt layouts this repo reads to list[pocket] of list[mol_dict].
 
-    The sampling sets are not stored uniformly:
+    Sampling sets are not stored uniformly:
       * grouped     : list[N_pockets] of list[mol]        (what group_samples.py writes)
-      * dict-wrapped: {'all_results': [mol, ...], ...}     (PIDiff) -- a FLAT list, one entry per
+      * dict-wrapped: {'all_results': [mol, ...], ...}     a flat list with one entry per
                       molecule, so it has to be regrouped by ligand_filename
-      * flat        : [mol, ...]                           (same, without the dict wrapper)
+      * flat        : [mol, ...]                           the same, without the dict wrapper
 
-    Pocket ORDER matters: index i must be the CrossDock test-set data_id, because every downstream
-    join (manifest -> receptor, p<NNN>_m<MMMM> titles, cross-model per-pocket tables) keys on it.
+    Pocket order matters. Index i must be the CrossDocked test-set data_id, because every
+    downstream join keys on it, including manifest to receptor, the p<NNN>_m<MMMM> titles and the
+    cross-model per-pocket tables.
 
-    Flat layouts must therefore be placed at their CANONICAL index, not renumbered by order of
-    appearance. PIDiff generated nothing for one pocket; renumbering by appearance packed the rest
-    into 0..91 and silently shifted 77 of them onto the WRONG receptor. So flat sets are aligned
-    through the canonical order (targetdiff's), and pockets the model has no molecules for stay
-    present as empty slots.
+    Flat layouts must therefore be placed at their canonical index rather than renumbered by order
+    of appearance. A model that generated nothing for one pocket shows the hazard. Renumbering by
+    appearance packs the remainder into 0..91 and silently shifts 77 of them onto the wrong
+    receptor. Flat sets are aligned through the canonical order instead, and pockets a model has
+    no molecules for stay present as empty slots.
 
-    Alignment keys on the FULL ligand_filename, not the pocket directory: the CrossDock test set
-    lists seven binding sites twice under the same directory with a different reference ligand
-    (e.g. NOS1 at data_id 53 and 54), so a directory-keyed map would copy one pocket's molecules
-    into both slots and inflate the molecule count. Same reasoning as build_comparison_tables.py's
-    full2idx. A molecule whose exact ligand_filename is not in the canonical set falls back to the
-    directory, but only when that directory maps to exactly one index.
+    Alignment keys on the full ligand_filename rather than the pocket directory. The CrossDocked
+    test set lists seven binding sites twice under the same directory with a different reference
+    ligand, for example NOS1 at data_id 53 and 54, so a directory-keyed map would copy one
+    pocket's molecules into both slots and inflate the molecule count. A molecule whose exact
+    ligand_filename is not in the canonical set falls back to the directory, but only when that
+    directory maps to exactly one index.
     """
     obj = _torch_load(path)
     if isinstance(obj, dict):
@@ -129,7 +130,7 @@ def load_grouped(path):
 def canonical_ligand_files(path='data/test_pocket_order.json'):
     """The canonical ligand_filename of each test pocket, in pocket order.
 
-    Pocket identity keys on the FULL ligand filename, never on the pocket directory: seven
+    Pocket identity keys on the full ligand filename and never on the pocket directory. Seven
     CrossDocked sites appear twice in the test split under one directory with different
     reference ligands, so regrouping by directory silently pairs molecules with the wrong
     receptor. A .pt of grouped results is also accepted, and the order is read from it the
@@ -195,10 +196,10 @@ def main():
         rows.append({'pocket_idx': pi, 'pocket': pocket, 'receptor': rec,
                      'n_mols': n, 'ref_ligand': ref})
 
-    # lineterminator='\n': the csv 'excel' dialect defaults to '\r\n', and with newline='' Python
-    # writes that CR literally. manifest.csv is read by the sbatch scripts with `IFS=, read`, which
-    # would then carry a trailing '\r' into the LAST field -- ref_ligand -- and hand
-    # `--autobox_ligand <path>\r` to smina/gnina, i.e. a file that does not exist.
+    # lineterminator='\n' is required. The csv 'excel' dialect defaults to '\r\n', and with
+    # newline='' Python writes that CR literally. Shell callers read manifest.csv with
+    # `IFS=, read`, which would then carry a trailing '\r' into the last field, ref_ligand, and
+    # hand `--autobox_ligand <path>\r` to smina or gnina, naming a file that does not exist.
     with open(os.path.join(args.out, 'manifest.csv'), 'w', newline='') as f:
         wr = csv.DictWriter(f, fieldnames=['pocket_idx', 'pocket', 'receptor', 'n_mols', 'ref_ligand'],
                             lineterminator='\n')

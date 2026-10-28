@@ -52,9 +52,9 @@ SOURCES = [
 
 def load_named(*paths):
     """-> {name: mol}, first occurrence wins across all paths. sanitize=False so a bad pose is
-    flagged, not lost. Multiple paths so the docking arm's two passes -- the first 30/pocket
-    (pocket*_dock.sdf) and the remainder (pocket*_dock_rest.sdf), which are disjoint by molecule
-    name -- merge into one full-coverage set."""
+    flagged rather than lost. Several paths are accepted because a pocket can be docked in more
+    than one pass, each writing its own file. Passes are disjoint by molecule name, so they merge
+    into one full-coverage set."""
     out = {}
     for path in paths:
         if not (os.path.isfile(path) and os.path.getsize(path) > 0):
@@ -74,11 +74,10 @@ def one_pocket(task):
         return []
     engines = {}
     for eng, mode, sub, suf in SOURCES:
-        # Glob every pass rather than naming them: dock ran as subset + _rest, and a third
-        # `_lost` pass was added 2026-08-05 to recover the molecules that make_subset_sdf.py
-        # dropped by sanitising (they were in neither sdf30/ nor sdfrest30/, so no engine ever
-        # saw them while they stayed in the reporting denominator). Passes are disjoint by
-        # molecule name and load_named keeps the first occurrence, so the union is safe.
+        # Glob every pass rather than naming them, so a pocket docked in several passes is
+        # covered in full. A molecule that no pass reached would otherwise stay in the
+        # reporting denominator with no engine pose. Passes are disjoint by molecule name and
+        # load_named keeps the first occurrence, so the union over them is safe.
         stem = os.path.join(model_dir, sub, f'pocket{tag}{suf[:-4]}')
         paths = [stem + '.sdf'] + sorted(p for p in glob.glob(stem + '_*.sdf'))
         engines[(eng, mode)] = load_named(*paths)

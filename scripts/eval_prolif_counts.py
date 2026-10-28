@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
-"""ProLIF interaction counts for one pocket, recording BOTH conventions per type.
+"""ProLIF interaction counts for one pocket, recording both counting conventions per type.
 
-Why a separate script from eval_posecheck.py: that script sums `int(bool(cell))`, i.e. one count
-per (residue, interaction-type) — the ProLIF 2.2 default `count=False`. The PoseCheck paper and
-FlexSBDD (arXiv, Appendix B.4 Table 7) instead report the number of individual CONTACTS
-(`count=True` raw-sum), which runs ~3x higher for hydrophobic (measured: 2.36 vs 5.29 on
-vina_fixed pocket0). To compare against those numbers we need the per-contact count, which the
-existing CSVs did not store. This recomputes the fingerprint with count=True and writes, per
-molecule and per interaction type, BOTH the per-contact count (`<type>_contact`) and the
-per-residue presence (`<type>_res`, == the old boolean column, kept for validation).
+Why this is a separate script from eval_posecheck.py: that script sums `int(bool(cell))`, which
+is one count per (residue, interaction-type) and the ProLIF 2.2 default of `count=False`. The
+PoseCheck paper and FlexSBDD (arXiv, Appendix B.4 Table 7) instead report the number of
+individual contacts, the raw sum under `count=True`, which runs about three times higher for
+hydrophobic contacts. Measured on one test pocket the two conventions give 2.36 and 5.29.
+Comparing against those papers needs the per-contact count, which eval_posecheck.py does not
+store. This script recomputes the fingerprint with count=True and writes, per molecule and per
+interaction type, both the per-contact count (`<type>_contact`) and the per-residue presence
+(`<type>_res`, which equals the boolean column eval_posecheck.py writes and is kept for
+validation).
 
-It computes ONLY the interaction fingerprint — no clashes, no strain — so it is far faster than a
-full PoseCheck run (strain relaxation was the slow part). The receptor is still protonated with
-PoseCheck's own loader and the same two prolif patches eval_posecheck.py uses, so H-bond / metal
-handling is identical.
+It computes the interaction fingerprint only, with no clashes and no strain, so it is far faster
+than a full PoseCheck run, where the strain relaxation dominates. The receptor is still
+protonated with PoseCheck's own loader and the same two prolif patches eval_posecheck.py applies,
+so H-bond and metal handling are identical.
 
-Run with the posecheck env interpreter:
+Run with the ged-posecheck interpreter:
     "$CONDA_BASE/envs/ged-posecheck/bin/python" scripts/eval_prolif_counts.py \
-        --dir eval_out/vina_fixed --pocket 0
+        --dir eval_out/mymodel --pocket 0
 
 Input  : <dir>/manifest.csv + <dir>/sdf/pocket<NNN>.sdf
 Output : <dir>/prolif_counts/pocket<NNN>.csv   molecule,<type>_contact,<type>_res,...
@@ -36,15 +38,16 @@ RDLogger.DisableLog('rdApp.*')
 _ENV_BIN = os.path.dirname(os.path.abspath(sys.executable))
 os.environ['PATH'] = _ENV_BIN + os.pathsep + os.environ.get('PATH', '')
 
-# VdWContact radii for real metals — same table eval_posecheck.py uses so a metalloprotein pocket
-# does not abort at fingerprint time.
+# VdWContact radii for real metals, the same table eval_posecheck.py uses, so that a
+# metalloprotein pocket does not abort at fingerprint time.
 _VDW_RADII = {'Co': 2.00, 'Zn': 1.39, 'Fe': 1.80, 'Mn': 1.80, 'Ni': 1.63, 'Cu': 1.40,
               'Mg': 1.73, 'Ca': 2.31, 'Na': 2.27, 'K': 2.75, 'Cd': 1.58, 'Hg': 1.55}
 _VDW_RADII.update({k.upper(): v for k, v in list(_VDW_RADII.items())})
 
 
 def _patch_prolif_vdwradii():
-    """Identical to eval_posecheck.py: fix MDAnalysis protein loading on CO-named atoms / neg resids."""
+    """Identical to eval_posecheck.py. Fixes MDAnalysis protein loading for atoms whose PDB name
+    starts "CO" and for receptors numbering residues from a negative value."""
     import MDAnalysis as mda
     import prolif as plf
     from posecheck.utils import loading
@@ -77,7 +80,7 @@ _PC = None
 
 
 def _eval_one(mol, q):
-    """Child: count=True fingerprint of one ligand -> {type: (contact_sum, residue_count)}."""
+    """Child process: count=True fingerprint of one ligand -> {type: (contact_sum, residue_count)}."""
     try:
         _PC.load_ligands_from_mols([mol])
         fp = _fingerprint(count=True)

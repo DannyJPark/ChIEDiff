@@ -1,31 +1,28 @@
 #!/usr/bin/env python3
-"""AutoDock Vina score_only + minimize + dock for one (model, pocket), with EXACT atom mapping.
+"""AutoDock Vina score_only, minimize and dock for one (model, pocket), with an exact atom map.
 
-Why this exists alongside the smina/SDF arm
--------------------------------------------
-The Vina numbers in the paper come from AutoDock Vina, so the RMSD that accompanies them should
-too. The poses already stored in the .pt cannot be reused: they were prepared through the obabel
-`PrepLig` path (utils/evaluation/docking_vina.py), which keeps no RDKit index map, so the
-correspondence is unrecoverable after the fact. Hence re-docking with meeko, whose PDBQT carries
-`REMARK SMILES IDX`.
+Why this exists alongside the smina/SDF arm: the Vina numbers in the paper come from AutoDock
+Vina, so the RMSD reported with them comes from AutoDock Vina as well. Poses prepared through an
+Open Babel ligand path carry no RDKit index map, so their atom correspondence is unrecoverable
+after the fact. Docking here goes through meeko instead, whose PDBQT carries `REMARK SMILES IDX`.
 
-Meeko returns the rebuilt molecule in CANONICAL SMILES order, not the input SDF order, so all
-comparisons go through rmsd_core.rmsd_sym (CalcRMS) and never through atom indices.
+Meeko returns the rebuilt molecule in canonical SMILES order rather than the input SDF order, so
+every comparison goes through rmsd_core.rmsd_sym (CalcRMS) and never through atom indices.
 
 Two box modes, both needed:
-    ref      crystal reference ligand centroid, fixed cube  -- the protocol all models share
-    genbbox  the generated molecule's own bbox              -- reproduces docking_vina.py:214,221,
-             i.e. the legacy box, so the legacy pipeline's bias can be isolated with the box held
-             fixed, and so T2's required sensitivity analysis exists
+    ref      crystal reference ligand centroid, fixed cube. The protocol all models share.
+    genbbox  the generated molecule's own bounding box, padded by --buffer. Holding everything
+             else fixed and changing only the box is what isolates the box's own contribution,
+             so this mode supplies the box sensitivity analysis.
 
-Molecules meeko cannot prepare are written with prep_ok=0 and a reason, NEVER dropped: the
-fragmentation rate differs by model (15-28% for the physics models, 0% for every baseline), so
-silent skipping would rebuild exactly the missing-not-at-random bias this experiment exists to
-remove, so the fragmentation rate belongs in the reported counts.
+Molecules meeko cannot prepare are written with prep_ok=0 and a reason, never dropped. The
+fragmentation rate differs by model, around 15 to 28 per cent for the energy-guided models and
+0 per cent for every baseline, so silent skipping would reintroduce the missing-not-at-random
+bias these measurements exist to avoid. The fragmentation rate belongs in the reported counts.
 
-Run with the meekovina env (meeko 0.6.1 + vina 1.2.2):
-    ~/anaconda3/envs/meekovina/bin/python scripts/vina_meeko_dock.py \
-        --dir eval_out/vina_fixed --pocket 0 --box ref
+Run with the ged-vina environment, which holds meeko 0.6.1 and vina 1.2.2:
+    "$CONDA_BASE/envs/ged-vina/bin/python" scripts/vina_meeko_dock.py \
+        --dir eval_out/mymodel --pocket 0 --box ref
 """
 import argparse
 import csv
@@ -59,7 +56,7 @@ def prepare_pdbqt(mol_h):
             setups = MoleculePreparation(**kw).prepare(mol_h)
         except ValueError as e:
             msg = str(e)
-            # disconnected ligand -- not recoverable, and a real property of the molecule
+            # A disconnected ligand is not recoverable, and it is a real property of the molecule.
             return None, ('fragmented' if 'fragment' in msg else f'prep_error:{msg[:60]}'), False
         except Exception as e:                                   # noqa: BLE001
             return None, f'prep_exc:{type(e).__name__}', False
@@ -83,7 +80,8 @@ def read_back(pdbqt_str):
 
 
 def box_for(mode, gen_mol, ref_centroid, size, buffer_):
-    """-> (center, box_size). 'genbbox' reproduces docking_vina.py:214/221 exactly."""
+    """-> (center, box_size). 'genbbox' centres the box on the generated molecule's own bounding
+    box and pads each edge by `buffer_`."""
     if mode == 'ref':
         return list(ref_centroid), [size, size, size]
     p = coords(heavy(gen_mol))
@@ -182,7 +180,7 @@ def main():
             v.write_pose(tmp_pose, overwrite=True)
             with open(tmp_pose) as fh:
                 min_pdbqt = fh.read()
-            # Re-seat the ORIGINAL ligand before docking: score_only / minimize / dock must all
+            # Re-seat the input ligand before docking. score_only, minimize and dock must all
             # start from the generated pose, otherwise dock would search from the minimised one
             # and dGlobal would no longer mean what the decomposition says it means.
             v.set_ligand_from_string(pdbqt)
