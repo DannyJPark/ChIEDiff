@@ -79,7 +79,8 @@ The released checkpoint is iteration 1,195,000 at batch size 2 with 2 accumulati
 which is on the order of a week on one 24 GB card. `--train_report_iter` and `--save_freq`
 control how often it logs and checkpoints.
 
-Training needs the 3.8 GB processed LMDB, and **that file is not in the data archive**, which
+Training needs the processed LMDB, a sparse file that reports 4.07 GB and holds about 1.45 GB
+of data, and **that file is not in the data archive**, which
 holds the weights, the molecules, the measurements and the receptors. It cannot be rebuilt
 from CrossDocked2020 with the code here, because it carries the affinity labels the objective
 reads, and it cannot be substituted either, because the split is a list of integer indices

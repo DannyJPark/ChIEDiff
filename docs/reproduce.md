@@ -109,8 +109,8 @@ defaults to the configuration's `val_freq`, so a short run needs a smaller value
 anything. `--train_report_iter` sets how often the loss is logged, and `--resume <run dir>`
 picks up where a stopped run left off.
 
-Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the 3.8 GB
-processed training set, and **that file is not in the data archive**. It cannot be rebuilt
+Training needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the processed
+training set, and **that file is not in the data archive**. It cannot be rebuilt
 from CrossDocked2020 with the code here, because it carries the affinity labels the objective
 reads and the repository has no script that can put them back, and it cannot be substituted
 either, because the split is a list of integer indices into its byte-sorted key order.

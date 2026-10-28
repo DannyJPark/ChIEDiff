@@ -54,9 +54,15 @@ them packed.
 ## The training LMDB is not in the archive
 
 The archive holds the weights, the generated molecules, the measurements and the receptors.
-It does **not** hold `crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the 3.8 GB
-processed training set. So sampling from the released weights and re-measuring the molecules
-both work from the archive alone, and **training from scratch does not**.
+It does **not** hold `crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb`, the processed
+training set.
+
+That file reports 4.07 GB but holds about 1.45 GB of data. LMDB preallocates its map and
+leaves the remainder of the file as a hole, so `ls` and `du --apparent-size` disagree with
+plain `du`, and it compresses to roughly 1.2 GB.
+
+So sampling from the released weights and re-measuring the molecules both work from the
+archive alone, and **training from scratch does not**.
 
 That file carries the Vina affinity labels the training objective reads, and those were
 written into it by an earlier run. The repository does not contain a script that can put them
