@@ -4,7 +4,8 @@ Two small files ship here. The rest comes from the archive.
 
 ```bash
 python tools/download_archive.py --doi 10.5281/zenodo.23029438
-gunzip data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb.gz
+gunzip -c archive/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb.gz \
+    > data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb
 ```
 
 | File | Size | What |
