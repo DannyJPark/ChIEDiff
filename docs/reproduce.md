@@ -71,7 +71,7 @@ python scripts/group_samples.py --base results/generated --out results/myrun.pt
 
 | | |
 |---|---|
-| the published tables, from the summaries or the molecules | exactly |
+| the published tables, from the summaries or from the archived per-molecule measurements | exactly |
 | aggregate statistics from a fresh sampling run | within sampling variation |
 | the per-molecule atom-count distribution | exactly |
 | training loss and gradients on a fixed batch | exactly, CPU at one thread |
