@@ -11,8 +11,6 @@ ours_noguide,Ours (Vina Only),core,ok,100,2145,-8.885,-8.680,0.453,0.550,0.718,7
 ours_vina,Ours (Vina+Guide),core,ok,100,8340,-9.821,-9.904,0.488,0.530,0.711,89.6,ok,8338.0,8340.0,8339.0,1.385,0.7408,1.4277,0.3157,64.9161,ok,8340,8340,8101,24.2328,4.0659,7.0387,11.8043,0.5039,1.9668,0.8077,1.7011,14.774,0.6461,ok,99,8340,2.0342,1.7565,-9.9356,-7.9661,65.55,72.45,71.89,91.14,ok,100,8325,8101,5.0,565.6710095699057,14.773978521170227,0.6461090243327282
 novdw,Ours (Guide Only),ablation,ok,100,2054,-9.244,-9.340,0.523,0.510,0.703,87.5,ok,2054.0,2054.0,2054.0,2.503,1.0204,2.2607,0.4448,60.9542,ok,2054,2054,1925,23.8514,3.7171,5.648,9.9216,0.4298,1.6135,0.7584,1.359,13.3678,0.593,not_measured,,,,,,,,,,,ok,100,2034,1925,7.0,440.22659165970447,13.367792207792208,0.5930208190163346
 abl_none_off,"Ours (No physics, no guide)",ablation,not_measured,,,,,,,,,not_measured,,,,,,,,,ok[nci_abl],,,,,,,,,,,,,,not_measured,,,,,,,,,,,ok[posecheck_abl],,,,,,,
-pignet_fixed,Ours (PIGNet+Guide),ablation,retired,,,,,,,,,retired,,,,,,,,,retired,,,,,,,,,,,,,,not_measured,,,,,,,,,,,retired,,,,,,,
-pgdiff_fixed,Ours (PGDiff+Guide),ablation,retired,,,,,,,,,retired,,,,,,,,,retired,,,,,,,,,,,,,,not_measured,,,,,,,,,,,retired,,,,,,,
 abl_vdw_on,Ours (vdW+Guide),ablation,not_measured,,,,,,,,,not_measured,,,,,,,,,ok[nci_abl],,,,,,,,,,,,,,not_measured,,,,,,,,,,,ok[posecheck_abl],,,,,,,
 abl_vdw_off,Ours (vdW Only),ablation,not_measured,,,,,,,,,not_measured,,,,,,,,,ok[nci_abl],,,,,,,,,,,,,,not_measured,,,,,,,,,,,ok[posecheck_abl],,,,,,,
 abl_hbond_on,Ours (HB+Guide),ablation,not_measured,,,,,,,,,not_measured,,,,,,,,,ok[nci_abl],,,,,,,,,,,,,,not_measured,,,,,,,,,,,ok[posecheck_abl],,,,,,,
