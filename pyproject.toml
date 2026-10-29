@@ -30,7 +30,7 @@ classifiers = [
 # torch, torch-geometric and torch-scatter are deliberately NOT listed. They need a wheel
 # matched to the local CUDA build (torch 1.11.0 + cu113 here) and pip cannot pick that
 # correctly from an index alone. Install the environment from envs/environment-train.yml
-# first, then `pip install -e .` into it.
+# first, then `pip install --no-deps -e .` into it.
 dependencies = [
     # rdkit comes from pip in envs/environment-train.yml and the package imports it directly
     # (utils/data.py, utils/reconstruct.py, utils/evaluation/*), so it belongs here.

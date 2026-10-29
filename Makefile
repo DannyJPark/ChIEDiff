@@ -17,7 +17,7 @@ help:  ## show this list
 
 install:  ## create the training environment and install the package into it
 	conda env create -f envs/environment-train.yml
-	@echo "Then: conda activate ged-train && pip install -e ."
+	@echo "Then: conda activate ged-train && pip install --no-build-isolation --no-deps plip==3.0.0 && pip install --no-deps -e ."
 	@echo "The evaluation environments are separate; see envs/README.md."
 
 archive:  ## download the weights, molecules, measurements and receptors

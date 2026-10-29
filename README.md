@@ -9,7 +9,8 @@ affinity-head gradient.
 ```bash
 conda env create -f envs/environment-train.yml
 conda activate ged-train
-pip install -e .
+pip install --no-build-isolation --no-deps plip==3.0.0
+pip install --no-deps -e .
 ```
 
 Re-measuring needs three more environments and two external binaries, SMINA and GNINA 1.1.
@@ -18,6 +19,7 @@ See [`envs/README.md`](envs/README.md).
 ```bash
 conda env create -f envs/environment-vina.yml
 conda env create -f envs/environment-posecheck.yml
+conda run -n ged-posecheck pip install --no-deps posecheck==1.3.1
 conda env create -f envs/environment-posebusters.yml
 ```
 

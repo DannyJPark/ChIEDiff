@@ -5,7 +5,8 @@
 #
 #   conda env create -f envs/environment-train.yml
 #   conda activate ged-train
-#   pip install -e .
+#   pip install --no-build-isolation --no-deps plip==3.0.0
+#   pip install --no-deps -e .
 #
 # The torch / PyG / torch-scatter line is matched to CUDA 11.3. Substituting a different
 # CUDA build means substituting all four together. The model runs on GPUs newer than cu113
@@ -25,6 +26,8 @@ dependencies:
   # --- deep learning stack, pinned as a unit against cu113 ---------------------
   - pytorch=1.11.0
   - cudatoolkit=11.3
+  # torch 1.11.0 does not import against mkl 2024.1 or later.
+  - mkl=2023.1.0
   - pyg=2.0.4
   - pytorch-scatter=2.0.9
   - pytorch-sparse=0.6.13
@@ -47,7 +50,6 @@ dependencies:
 
   # --- io / config ------------------------------------------------------------
   - pyyaml
-  - lmdb
   - tqdm
   - biopython
 
@@ -61,11 +63,14 @@ dependencies:
       - notebook
       - jupyter
       - easydict==1.13
+      - lmdb==1.6.2
       - tensorboard==2.9.0
       - protobuf<=3.20.3
       # PLIP 3.0.0 lives here and nowhere else. It is stable across releases, which is why
       # the cross-paper interaction comparison uses the PLIP arm rather than ProLIF.
-      - plip==3.0.0
+      # It is installed after this file, with --no-deps against the conda openbabel above
+      # (commands at the top). lxml is its other dependency.
+      - lxml==5.2.2
       # AutoDock Vina Python API, for generated-pose scoring and redocking.
       - vina==1.2.2
       # Pinned, because the docking path depends on this version. Work that needs meeko

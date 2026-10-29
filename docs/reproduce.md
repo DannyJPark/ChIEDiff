@@ -15,6 +15,7 @@ Minutes, CPU, no downloads. Section 2 additionally needs the archive.
 ```bash
 conda env create -f envs/environment-vina.yml
 conda env create -f envs/environment-posecheck.yml
+conda run -n ged-posecheck pip install --no-deps posecheck==1.3.1
 conda env create -f envs/environment-posebusters.yml
 python tools/download_archive.py --doi 10.5281/zenodo.23029438
 bash bin/measure.sh --pt archive/chiediff_generated_molecules.pt --tag chiediff --pockets 0-4
@@ -79,7 +80,7 @@ A thousand stochastic steps at guidance scale 25 grow that into a different mole
 
 | Symptom | Cause |
 |---|---|
-| `ModuleNotFoundError: gated_energy_diffusion` | run from the repository root, or `pip install -e .` |
+| `ModuleNotFoundError: gated_energy_diffusion` | run from the repository root, or `pip install --no-deps -e .` |
 | `AssertionError: ... requires per-atom XS flags` | the transform list is missing `FeaturizeVinaAtomTypes` |
 | `ValueError: use_dual_head_sam_pl=True` | a configuration this release does not implement |
 | `receptor not found` | run from the repository root; `manifest.csv` paths are relative to it |

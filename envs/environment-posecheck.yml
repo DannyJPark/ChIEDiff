@@ -19,10 +19,6 @@
 #    contacts per molecule pre-2.1 versus 1.44 at 2.1+. Upgrading invalidates every ProLIF
 #    column in every table, and re-measuring only part of a table mixes two definitions
 #    inside it.
-#
-# Note also that this environment pulls in a CPU-only torch as a PoseCheck dependency. It
-# is unrelated to the training torch. Under torch >= 2.6 the default for `weights_only`
-# changed, which is why the .pt loaders in scripts/ pass it explicitly.
 
 name: ged-posecheck
 
@@ -38,7 +34,10 @@ dependencies:
   - pip
   - pip:
       - rdkit==2026.3.4
-      - posecheck==1.3.1
+      # posecheck==1.3.1 is installed after this file with --no-deps, because it declares
+      # pandas==2.0.0 (see README.md, Installation). These are its other dependencies.
+      - datamol==0.12.5
+      - seaborn==0.13.2
       # PINNED. See the header. Do not move this without re-measuring every ProLIF arm.
       - prolif==2.2.0
       - MDAnalysis==2.9.0
