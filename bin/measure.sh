@@ -105,7 +105,11 @@ if have "$VN"; then
     done
 fi
 
-step "smina, Vinardo and gnina: re-dock and re-minimise"
+step "AutoDock Vina: score_only in a box fitted to each generated molecule"
+have "$KG" && $KG scripts/vina_genbox_score.py --pt "$PT" --dir "$OUT" --pockets $PK_LIST \
+    || echo "  Vina genbox step failed; continuing"
+
+step "smina, Vinardo and gnina: score, re-dock and re-minimise"
 echo "  External binaries, installed from their own upstreams; see envs/README.md."
 have_engine() {
     # vinardo is smina with another scoring function, so both come from $SMINA.
@@ -116,7 +120,7 @@ have_engine() {
 }
 for eng in smina vinardo gnina; do
     if have_engine "$eng"; then
-        for mode in dock min; do
+        for mode in dock min score; do
             $KG scripts/dock_engines.py --dir "$OUT" --engine "$eng" --mode "$mode" \
                 --pockets $PK_LIST --cpus "$WORKERS" \
                 || echo "  $eng $mode reported a failure; continuing"

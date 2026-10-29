@@ -31,7 +31,8 @@ a newer glibc than many cluster images carry.
 |---|---|---|
 | per-pocket SDFs | `eval_export_sdf.py` | `eval_out/<tag>/sdf/` |
 | Vina score, minimize, dock | `vina_meeko_dock.py` | `eval_out/<tag>/vina_meeko/` |
-| SMINA, Vinardo, GNINA | `dock_engines.py` | `eval_out/<tag>/{smina,smina_vinardo,gnina}/` |
+| Vina score, box fitted to the molecule | `vina_genbox_score.py` | `eval_out/<tag>/vina_genbox/` |
+| SMINA, Vinardo, GNINA score, minimize, dock | `dock_engines.py` | `eval_out/<tag>/{smina,smina_vinardo,gnina}/` |
 | pose RMSD | `pose_rmsd.py` | `eval_out/<tag>/pose_rmsd.csv` |
 | PoseCheck, ProLIF | `eval_posecheck.py`, `eval_prolif_counts.py` | `eval_out/<tag>/{posecheck,prolif_counts}/` |
 | PoseBusters | `eval_posebusters.py`, `eval_pb_distance.py` | `eval_out/<tag>/{posebusters,pb_distance}/` |

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Re-dock and re-minimise the generated poses with smina, Vinardo and gnina.
+"""Score, re-dock and re-minimise the generated poses with smina, Vinardo and gnina.
 
 The mode decides the search and the engine decides the scoring function, and the two stay
 orthogonal, so smina-Vina against smina-Vinardo is a single-variable swap with the same binary,
-the same search, the same box and the same seed. Dock mode boxes on the reference ligand, and
-min mode relaxes in place and takes no box.
+the same search, the same box and the same seed. Dock mode boxes on the reference ligand,
+min mode relaxes in place and takes no box, and score mode scores the pose as generated and
+takes no box.
 
 vinardo is smina with --scoring vinardo. gnina adds CNN rescoring and reports the CNN-ranked
 pose, which is why its dock and min arms are not interchangeable with smina's.
@@ -105,8 +106,10 @@ def run_pocket(base, row, engine, mode, binary, cpus, exhaustiveness, seed, time
         modeargs = ['--autobox_ligand', str(ref),
                     '--exhaustiveness', str(exhaustiveness),
                     '--num_modes', '1', '--seed', str(seed)]
-    else:
+    elif mode == 'min':
         modeargs = ['--minimize']
+    else:
+        modeargs = ['--score_only']
 
     cmd = [binary, '-r', str(receptor), '-l', str(sdf)] + scoring + modeargs
     cmd += ['--cpu', str(cpus)]
@@ -114,20 +117,23 @@ def run_pocket(base, row, engine, mode, binary, cpus, exhaustiveness, seed, time
     # format from it and exit 255 on anything else, writing nothing.
     tmp = outdir / f'.pocket{tag}_{mode}.partial.{os.getpid()}.sdf'
     cmd += ['-o', str(tmp)]
+    # The budget is per molecule, because one engine call takes the whole pocket and gnina's CNN
+    # on a CPU costs minutes per docked molecule.
+    budget = timeout * max(want, 1) if timeout > 0 else None
     try:
         r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                           text=True, timeout=timeout)
+                           text=True, timeout=budget)
     except subprocess.TimeoutExpired:
         tmp.unlink(missing_ok=True)
-        print(f'pocket{tag} {engine} {mode}: TIMEOUT after {timeout}s', flush=True)
-        return None
+        print(f'pocket{tag} {engine} {mode}: TIMEOUT after {budget}s', flush=True)
+        return False
     got = count_records(tmp)
     if r.returncode != 0 or got == 0:
         tail = (r.stderr or '').strip().splitlines()
         why = tail[-1][:160] if tail else f'rc={r.returncode}'
         tmp.unlink(missing_ok=True)
         print(f'pocket{tag} {engine} {mode}: FAILED ({why})', flush=True)
-        return None
+        return False
     os.replace(tmp, out)                        # only a complete run replaces the output
     print(f'pocket{tag} {engine} {mode}: {got}/{want} poses -> {out}', flush=True)
     return out
@@ -137,12 +143,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dir', required=True, help='eval_out/<model> (holds manifest.csv and sdf/)')
     ap.add_argument('--engine', required=True, choices=sorted(ENGINES))
-    ap.add_argument('--mode', default='dock', choices=('dock', 'min'))
+    ap.add_argument('--mode', default='dock', choices=('dock', 'min', 'score'))
     ap.add_argument('--binary', default='', help='override the engine executable')
     ap.add_argument('--cpus', type=int, default=1)
     ap.add_argument('--exhaustiveness', type=int, default=8)
     ap.add_argument('--seed', type=int, default=42)
-    ap.add_argument('--timeout', type=int, default=3600, help='seconds per pocket')
+    ap.add_argument('--timeout', type=int, default=900,
+                    help='seconds per input molecule, summed over the pocket; 0 for none')
     ap.add_argument('--pockets', type=int, nargs='+', help='restrict to these pocket_idx')
     a = ap.parse_args()
 
@@ -154,10 +161,10 @@ def main():
             if a.pockets is None or int(r['pocket_idx']) in set(a.pockets)]
     if not todo:
         sys.exit('no pockets selected')
-    for row in todo:
-        run_pocket(base, row, a.engine, a.mode, binary, a.cpus,
-                   a.exhaustiveness, a.seed, a.timeout)
-    return 0
+    results = [run_pocket(base, row, a.engine, a.mode, binary, a.cpus,
+                          a.exhaustiveness, a.seed, a.timeout) for row in todo]
+    # Non-zero when a pocket timed out or the engine failed, so bin/measure.sh reports it.
+    return 1 if any(r is False for r in results) else 0
 
 
 if __name__ == '__main__':
