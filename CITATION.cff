@@ -14,9 +14,9 @@ license:
   - GPL-2.0
 # MIT throughout, except gated_energy_diffusion/utils/reconstruct.py, which is GPL-2.0.
 # See NOTICE.md.
-version: 1.0.0
+version: 2.0.0
 repository-code: https://github.com/DannyJPark/ChIEDiff
-doi: 10.5281/zenodo.23000086
+doi: 10.5281/zenodo.23750281
 keywords:
   - structure-based drug design
   - 3D molecular generation

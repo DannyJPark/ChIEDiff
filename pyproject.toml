@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gated-energy-diffusion"
-version = "1.0.0"
+version = "2.0.0"
 description = "Chemistry-gated interaction-energy diffusion for structure-based 3D molecular generation"
 readme = "README.md"
 requires-python = ">=3.9,<3.10"
@@ -82,7 +82,7 @@ email = "sanghyun@yonsei.ac.kr"
 
 [project.urls]
 Homepage = "https://github.com/DannyJPark/ChIEDiff"
-Software-archive = "https://doi.org/10.5281/zenodo.23000086"
+Software-archive = "https://doi.org/10.5281/zenodo.23750281"
 Data-archive = "https://doi.org/10.5281/zenodo.23029438"
 
 [tool.setuptools.packages.find]
