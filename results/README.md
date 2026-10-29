@@ -1,9 +1,9 @@
 # `results/` — the aggregate numbers behind the paper's tables
 
 These are the summary files that `reproduction.ipynb` reads to print the tables. They are
-aggregates, not raw data: about 150 KB of per-model rows distilled from roughly 150 GB of
-sampled molecules, docked poses and per-pocket measurement CSVs across nine models and five
-instruments.
+aggregates, not raw data: about 230 KB of per-model rows, plus a 3.5 MB per-molecule file for
+the specificity analysis, distilled from roughly 150 GB of sampled molecules, docked poses and
+per-pocket measurement CSVs across nine models and five instruments.
 
 ```bash
 jupyter notebook reproduction.ipynb     # reads this directory; no GPU, no downloads
@@ -45,8 +45,8 @@ cd results && sha256sum -c MANIFEST.sha256
 | Not here | Why | Where instead |
 |---|---|---|
 | the generated molecules (`*.pt`) | ours is large, and six of the nine baselines are other papers' released generations | ours in the data archive; the baselines from their own publications |
-| the per-molecule measurement CSVs and PLIP JSONL | intermediate; the files above are their summary | the data archive, or regenerate with `bin/measure.sh` |
-| the per-molecule distribution caches | only the figures read them | the data archive |
+| the per-molecule measurement CSVs | intermediate; the files above are their summary | the data archive, or regenerate with `bin/measure.sh` |
+| the PLIP JSONL | intermediate; the files above are their summary | regenerate with `bin/measure.sh` |
 | the training LMDB | derived from CrossDocked2020, with the affinity labels the training used | the data archive. See `data/README.md` |
 
 ## Which column is which

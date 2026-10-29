@@ -49,9 +49,12 @@ FIRST="${POCKETS%%-*}"; LAST="${POCKETS##*-}"
 echo "ckpt=$CKPT"
 echo "pockets=$FIRST..$LAST  molecules/pocket=$N  batch=$BATCH  seed=$SEED"
 echo "result=$RESULT"
+DEVICE=$("$PY" -c "import torch; print('cuda' if torch.cuda.is_available() else 'cpu')" 2>/dev/null) \
+    || { echo "cannot import torch with $PY; activate ged-train or set PY" >&2; exit 2; }
 "$PY" -c "import torch; print(f'gpu: {torch.cuda.get_device_name() if torch.cuda.is_available() else \"none (CPU: very slow)\"}')" 2>/dev/null || true
 echo
 
+FAILED=""
 for i in $(seq "$FIRST" "$LAST"); do
     if [ -f "$RESULT/id$i/result_0.pt" ]; then
         echo "pocket $i: already sampled, skipping"
@@ -61,10 +64,12 @@ for i in $(seq "$FIRST" "$LAST"); do
     "$PY" bin/sample.py \
         --ckpt "$CKPT" --data_path "$DATA" --split_path "$SPLIT" \
         --data_id "$i" --num_samples "$N" --batch_size "$BATCH" --seed "$SEED" \
-        --result_path "$RESULT" || {
+        --device "$DEVICE" --result_path "$RESULT" || {
             echo "pocket $i failed; continuing with the next one" >&2
+            FAILED="$FAILED $i"
         }
 done
+[ -z "$FAILED" ] || { echo; echo "sampling failed for pocket(s):$FAILED" >&2; exit 1; }
 
 echo
 echo "Sampling done. Next: bash bin/measure.sh --base $RESULT --tag mymodel --pockets $POCKETS"

@@ -21,7 +21,9 @@ python tools/download_archive.py --doi 10.5281/zenodo.23029438
 bash bin/measure.sh --pt archive/chiediff_generated_molecules.pt --tag chiediff --pockets 0-4
 ```
 
-SMINA and GNINA 1.1 are not conda packages. Put them on `PATH` or set `$SMINA` and `$GNINA`.
+SMINA (the 2019-10-15 static build, <https://sourceforge.net/projects/smina/files/>) and GNINA 1.1
+(<https://github.com/gnina/gnina/releases/tag/v1.1>) are single binaries. Put them on `PATH` or set
+`$SMINA` and `$GNINA`.
 Vinardo is SMINA with another scoring flag. GNINA is pinned at 1.1 because 1.3 and above need
 a newer glibc than many cluster images carry.
 
@@ -37,20 +39,22 @@ a newer glibc than many cluster images carry.
 | strain, properties | `strain_energy.py`, `chem_props.py` | `eval_out/<tag>/` |
 
 `--pockets` defaults to 0-4. The full benchmark is 100 pockets through five instruments, days
-on one workstation. Every step skips work whose output exists, so an interrupted run resumes.
+on one workstation. On a re-run, the SMINA, Vinardo, GNINA and PoseBusters steps skip a pocket
+whose output exists, and the other steps run again.
 
 ## Training
 
 ```bash
 conda activate ged-train
-python bin/train.py --config configs/train.yml --tag myrun --save_freq 1000
+python bin/train.py --config configs/train.yml --tag myrun --save_freq 100
 ```
 
 Needs `data/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb` from the archive. It
 carries the Vina affinity labels the objective reads, and the split indexes its byte-sorted
 key order, so use that file rather than rebuilding one.
 
-`--save_freq` defaults to the config's `val_freq`, so a short run writes nothing without it.
+`--save_freq` defaults to the config's `val_freq` (1000), so a run shorter than that leaves
+only the iteration-0 checkpoint without it.
 The split's validation subset is empty and the trainer validates on the test subset; leave it
 as it is, since the released weights were trained that way. The chemistry gates are
 mandatory: without the per-atom XS flags the run fails with an assertion.

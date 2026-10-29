@@ -15,7 +15,7 @@ help:  ## show this list
 	@echo
 	@echo "  Read docs/reproduce.md first. One GPU is enough and no cluster is needed."
 
-install:  ## create the training environment and install the package into it
+install:  ## create the training environment (then pip install -e . inside it)
 	conda env create -f envs/environment-train.yml
 	@echo "Then: conda activate ged-train && pip install --no-build-isolation --no-deps plip==3.0.0 && pip install --no-deps -e ."
 	@echo "The evaluation environments are separate; see envs/README.md."

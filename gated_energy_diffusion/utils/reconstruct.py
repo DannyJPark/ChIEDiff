@@ -1,5 +1,5 @@
 """
-https://github.com/mattragoza/liGAN/blob/master/fitting.py
+https://github.com/mattragoza/liGAN/blob/cfbca652db813f00086ade81e1e784512f7c6d38/fitting.py
 
 License: GNU General Public License v2.0
 https://github.com/mattragoza/liGAN/blob/master/LICENSE

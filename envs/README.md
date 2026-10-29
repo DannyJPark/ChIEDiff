@@ -17,9 +17,9 @@ PoseBusters and PoseCheck carry two different RDKits and both contribute cells t
 | Work | Env |
 |---|---|
 | training, sampling, `reproduction.ipynb` | `ged-train` |
-| `group_samples.py`, `eval_export_sdf.py`, `dock_engines.py`, `pose_rmsd.py`, `strain_energy.py`, `chem_props.py`, `self_redock.py` | `ged-train` |
+| `group_samples.py`, `eval_export_sdf.py`, `dock_engines.py`, `pose_rmsd.py`, `strain_energy.py`, `chem_props.py` | `ged-train` |
 | PLIP (`plip_interactions.py`) | `ged-train`, where PLIP 3.0.0 lives |
-| `vina_meeko_dock.py` | `ged-vina` |
+| `vina_meeko_dock.py`, `self_redock.py` | `ged-vina` |
 | `eval_posecheck.py`, `eval_prolif_counts.py` | `ged-posecheck` |
 | `eval_posebusters.py`, `eval_pb_distance.py` | `ged-posebusters` |
 
@@ -31,6 +31,7 @@ SMINA and GNINA are external binaries on `PATH`, or named by `$SMINA` and `$GNIN
 2026.03.4 must not shadow `ged-train`'s 2024.03.6.
 
 ```bash
+CONDA_BASE="$(conda info --base)"
 $CONDA_BASE/envs/ged-posecheck/bin/python scripts/eval_posecheck.py --dir eval_out/mymodel --pocket 0
 ```
 
@@ -45,6 +46,7 @@ atom-index round trip, which is why it lives in a separate environment.
 **4. A batch script activates conda itself and never runs `conda init`.**
 
 ```bash
+CONDA_BASE="$(conda info --base)"   # or the absolute path, in a batch script
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate ged-train
 ```

@@ -5,8 +5,8 @@
 #   bash bin/measure.sh --pt mymodel.pt --tag mymodel --pockets 0-4
 #   bash bin/measure.sh --base results/samples --tag mymodel     # group the sampler output first
 #
-# Everything here is CPU work and runs sequentially on one machine. Each step skips work whose
-# output already exists, so an interrupted run resumes.
+# Everything here is CPU work and runs sequentially on one machine. The SMINA, Vinardo, GNINA and
+# PoseBusters steps skip a pocket whose output already exists; the other steps run again.
 #
 # Scale: the full benchmark is 100 pockets x ~100 molecules through five instruments, which is
 # days on one workstation. --pockets defaults to 0-4 so that a run confirms the pipeline works;
@@ -17,7 +17,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-CONDA_BASE="${CONDA_BASE:-$HOME/anaconda3}"
+CONDA_BASE="${CONDA_BASE:-$(conda info --base 2>/dev/null || echo "$HOME/anaconda3")}"
 KG="${KG:-$CONDA_BASE/envs/ged-train/bin/python}"
 PC="${PC:-$CONDA_BASE/envs/ged-posecheck/bin/python}"
 PB="${PB:-$CONDA_BASE/envs/ged-posebusters/bin/python}"
@@ -172,5 +172,3 @@ fi
 echo
 echo "Done: tag '$TAG', pockets $POCKETS."
 echo "Per-molecule results are under $OUT/ and eval_plip/$TAG/."
-echo "reproduction.ipynb reads the published aggregates; point its CSV paths at these"
-echo "directories to compare your own model against them."

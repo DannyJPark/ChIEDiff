@@ -43,8 +43,9 @@ See [`data/README.md`](data/README.md).
 jupyter notebook reproduction.ipynb
 ```
 
-Section 1 prints every table from the summary CSVs in `results/`. Section 2 recomputes them
-from the generated molecules.
+Section 1 prints every table from the summary CSVs in `results/`. Section 2 recomputes this
+work's cohort counts, properties, ring sizes, Vina medians and diversity from the generated
+molecules.
 
 ## Training
 

@@ -21,7 +21,7 @@ the check.
 | `gated_energy_diffusion/datasets/`, `gated_energy_diffusion/utils/{data,misc,train,transforms}.py` | TargetDiff lineage | MIT | — |
 | `gated_energy_diffusion/utils/warmup.py` | [pytorch-gradual-warmup-lr](https://github.com/ildoonet/pytorch-gradual-warmup-lr) via TargetDiff | MIT, Copyright (c) 2019 **Ildoo Kim** | the file's own header |
 | `gated_energy_diffusion/utils/vina_types.py` | atom typing ported from AutoDock Vina `src/lib/atom_constants.h` | Apache-2.0 (Vina 1.2); GPL-2.0 in Vina 1.1.2 and earlier | upstream source tree |
-| `gated_energy_diffusion/utils/evaluation/{analyze,atom_num,atom_num_config,eval_atom_type,eval_bond_length,eval_bond_length_config,scoring_func}.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
+| `gated_energy_diffusion/utils/evaluation/{atom_num,atom_num_config,eval_atom_type,eval_bond_length,eval_bond_length_config,scoring_func}.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
 | `gated_energy_diffusion/utils/evaluation/sascorer.py`, `fpscores.pkl.gz` | RDKit Contrib `SA_Score` | **BSD-3-Clause**, Copyright (c) 2013 Novartis | header at `sascorer.py` end; `fpscores.pkl.gz` is byte-identical to RDKit's |
 | `scripts/data_preparation/clean_crossdocked.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
 | `configs/posebusters_dock_1thread.yml` | [PoseBusters](https://github.com/maabuu/posebusters) 0.6.5 `config/dock.yml`, with `num_threads: 1` | MIT, Copyright (c) 2025 Martin Buttenschoen | upstream `LICENSE` |

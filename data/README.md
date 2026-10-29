@@ -12,7 +12,7 @@ gunzip -c archive/crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb.gz \
 |---|---|---|
 | `crossdocked_pocket10_pose_split.pt` | ships | the split: 99,990 train, 0 validation, 100 test, as integer indices into the LMDB |
 | `test_pocket_order.json` | ships | the canonical `ligand_filename` of each test pocket, in pocket order |
-| `test_set/`, `test_set_chainfix/` | 48 MB packed | the 100 test receptors with their reference ligands, and the chain-remapped copies |
+| `test_set/`, `test_set_chainfix/` | 59 MB packed | the 100 test receptors with their reference ligands, and the chain-remapped copies |
 | `crossdocked_v1.1_rmsd1.0_pocket10_processed_final.lmdb` | 1.07 GB packed | the processed training set |
 
 ## Pocket order
@@ -35,8 +35,7 @@ assert [ds.get_ori_data(int(i))['ligand_filename'] for i in split['test']] == \
 
 ## The training LMDB
 
-Decompressed it reports 4.07 GB and holds about 1.45 GB: LMDB preallocates its map and leaves
-the rest a hole, so `ls` and `du --apparent-size` disagree with plain `du`.
+Decompressed it is 4.07 GB, 166,500 records.
 
 It carries the Vina affinity labels the objective reads, and the split indexes its byte-sorted
 key order, so a rebuilt LMDB with a different record set shifts every index without raising an
