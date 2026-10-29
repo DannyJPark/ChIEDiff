@@ -21,7 +21,7 @@ cd results && sha256sum -c MANIFEST.sha256
 
 | File | Holds |
 |---|---|
-| `comparison/f1_sbdd/main_table/main_table.csv` | Vina score, minimize and dock per model, the score-dock gap, diversity |
+| `comparison/f1_sbdd/main_table/main_table.csv` | Vina, Vinardo and GNINA score and dock per model, the score-dock gap, diversity |
 | `comparison/f2_pose_fidelity/redocking_consistency/redocking_consistency.csv` | the score-to-dock gap and redocking RMSD per engine, one run per engine block |
 | `comparison/f2_pose_fidelity/pose_stability/pose_stability_strict.csv` | redocking RMSD on the strict pose cohort |
 | `comparison/f2_pose_fidelity/pose_stability/pose_stability_engineonly.csv` | the same on the RMSD-complete cohort, as a sensitivity check |
@@ -44,7 +44,7 @@ cd results && sha256sum -c MANIFEST.sha256
 
 | Not here | Why | Where instead |
 |---|---|---|
-| the generated molecules (`*.pt`) | ours is large, and six of the nine baselines are other papers' released generations | ours in the data archive; the baselines from their own publications |
+| the generated molecules (`*.pt`) | ours is large, and the baselines' molecules were released by their projects or generated here with their code | ours in the data archive; each baseline's project is in `NOTICE.md` |
 | the per-molecule measurement CSVs | intermediate; the files above are their summary | the data archive, or regenerate with `bin/measure.sh` |
 | the PLIP JSONL | intermediate; the files above are their summary | regenerate with `bin/measure.sh` |
 | the training LMDB | derived from CrossDocked2020, with the affinity labels the training used | the data archive. See `data/README.md` |

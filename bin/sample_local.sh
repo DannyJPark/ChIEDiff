@@ -3,12 +3,12 @@
 #
 #   bash bin/sample_local.sh --ckpt archive/<weights file> --pockets 0-4
 #
-# Defaults match the archived sampling settings, namely head1_only guidance at s_x=25 and
-# s_v=100, 1000 diffusion steps, 100 molecules per pocket, seed 42.
+# Defaults: head1_only guidance at s_x=25 and s_v=100, 1000 diffusion steps, 100 molecules
+# per pocket in one invocation, batch 4, seed 42.
 #
-# Cost. One pocket at 100 molecules is roughly an hour on a 24 GB card, so the full 100-pocket
-# benchmark takes days sequentially, and --pockets defaults to 0-4. The archived molecules ship
-# with the data, and `reproduction.ipynb` rebuilds every reported number without sampling at all.
+# Cost. One pocket at 100 molecules takes about 2.7 hours on an RTX 3090 and 1.9 hours on an
+# RTX 4090, so the full 100-pocket benchmark takes days sequentially, and --pockets defaults to
+# 0-4. The archived molecules ship with the data, and `reproduction.ipynb` needs no sampling.
 #
 # Re-runnable: a pocket whose first result file exists is skipped.
 #

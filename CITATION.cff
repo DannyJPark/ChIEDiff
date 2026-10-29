@@ -7,7 +7,7 @@ abstract: >-
   A pocket-conditioned 3D diffusion model that integrates a chemistry-gated,
   Vina-derived intermolecular energy into training on predicted clean coordinates,
   and steers sampling with a learned affinity-head gradient. Includes the evaluation
-  pipeline that regenerates every table in the accompanying manuscript.
+  pipeline behind the reported measurements, and the summary files they aggregate to.
 type: software
 license:
   - MIT

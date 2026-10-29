@@ -131,7 +131,7 @@ have "$KG" && $KG scripts/pose_rmsd.py --dir "$OUT" --jobs "$WORKERS" \
     || echo "  RMSD step skipped or failed; continuing"
 
 # ---- 4. interactions and physical validity ----------------------------------------
-step "PoseCheck strain and clashes, and ProLIF fingerprints"
+step "PoseCheck clashes and UFF strain, and ProLIF fingerprints"
 echo "  Absolute interpreter path on purpose: this environment's RDKit must not shadow the"
 echo "  training environment's. ProLIF must be 2.2.0; see envs/README.md."
 if have "$PC"; then

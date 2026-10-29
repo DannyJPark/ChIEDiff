@@ -43,9 +43,9 @@ See [`data/README.md`](data/README.md).
 jupyter notebook reproduction.ipynb
 ```
 
-Section 1 prints every table from the summary CSVs in `results/`. Section 2 recomputes this
-work's cohort counts, properties, ring sizes, Vina medians and diversity from the generated
-molecules.
+Section 1 prints the summary CSVs in `results/` that the tables are built from. Section 2
+recomputes this work's cohort counts, properties, ring sizes, Vina medians and diversity from
+the generated molecules.
 
 ## Training
 
@@ -54,8 +54,8 @@ python bin/train.py --config configs/train.yml --tag myrun
 python bin/train.py --config configs/train.yml --tag myrun --resume logs_diffusion/<run dir>
 ```
 
-The released checkpoint is iteration 1,195,000, batch size 2 with 2 accumulation steps, about
-a week on one 24 GB card.
+The released checkpoint is iteration 1,195,000, batch size 2 with 2 accumulation steps,
+reached in 41.8 hours from iteration 0 on one RTX 4090.
 
 ## Generating molecules
 
@@ -64,8 +64,9 @@ bash bin/sample_local.sh --ckpt archive/chiediff_weights_iter1195000.pt --pocket
 python scripts/group_samples.py --base results/generated --out results/myrun.pt
 ```
 
-About an hour per pocket at 100 molecules on a 24 GB card. Only `head1_only` guidance is
-implemented, with positions on grad log A-hat and atom types on grad A-hat.
+A pocket at 100 molecules takes about 2.7 hours on an RTX 3090 and 1.9 hours on an RTX 4090.
+Only `head1_only` guidance is implemented, with positions on grad log A-hat and atom types on
+grad A-hat.
 
 ## Evaluating generated molecules
 
@@ -73,8 +74,9 @@ implemented, with positions on grad log A-hat and atom types on grad A-hat.
 bash bin/measure.sh --pt results/myrun.pt --tag myrun --pockets 0-4
 ```
 
-Runs Vina, SMINA, Vinardo, GNINA, pose RMSD, PoseCheck, ProLIF, PoseBusters, PLIP, MMFF strain
-and the chemical properties. `--pockets` defaults to 0-4; pass `0-99` for the full test set.
+Runs Vina, SMINA, Vinardo, GNINA, pose RMSD, PoseCheck clashes and UFF strain, ProLIF,
+PoseBusters, PLIP, MMFF94s strain and the chemical properties. `--pockets` defaults to 0-4;
+pass `0-99` for the full test set.
 See [`docs/reproduce.md`](docs/reproduce.md).
 
 ## Requirements

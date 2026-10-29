@@ -7,18 +7,19 @@ atom types). Results are written as one `result_{i}.pt` per molecule under
 
 Reproducibility notes:
 
-  * The archived sample sets hold 100 molecules per pocket, produced by three chunked
-    invocations per pocket of 24, then 2, then 76 molecules, all at `--seed 42`, each
-    appending to the same pocket directory via `--start_index` (0, 24, 26). Each invocation
-    re-seeds and then draws its own atom counts and initial noise, so a single
-    `--num_samples 100` run at seed 42 yields a different set of 100 molecules. Reproducing
-    the archived set means reproducing the chunking.
+  * The archived sample sets hold 100 molecules per pocket, produced by two chunked
+    invocations per pocket of 24 and then 76 molecules, both at `--seed 42`, the second
+    appending to the same pocket directory via `--start_index 24`. Each invocation re-seeds
+    and then draws its own atom counts and initial noise, so a single `--num_samples 100` run
+    at seed 42 yields a different set of 100 molecules. Reproducing the archived set means
+    reproducing the chunking. Pocket 3 holds 99 molecules from the same two invocations.
 
   * `OMP_NUM_THREADS=1` is required for run-to-run comparability. At default GPU threading
     two otherwise identical runs differ by 10 to 19 atom types, and at `OMP_NUM_THREADS=8`
-    by 6 to 7. Only at one thread are they bitwise identical. Even then the sampler does not
-    reproduce individual molecules across different chunkings, so a fresh run reproduces the
-    reported statistics rather than the molecule identities. See the reproducibility notes in README.md.
+    by 6 to 7. Only on CPU at one thread are they bitwise identical. Even then the sampler does
+    not reproduce individual molecules across different chunkings, so a fresh run reproduces the
+    reported statistics rather than the molecule identities. See the reproducibility notes in
+    README.md.
 
 Usage:
     OMP_NUM_THREADS=1 python bin/sample.py --ckpt <checkpoint>.pt --data_id 0 \
