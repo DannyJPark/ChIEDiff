@@ -57,6 +57,9 @@ dependencies:
       # the same as the 2026.03.x RDKits in the PoseCheck and PoseBusters environments. See
       # envs/README.md.
       - rdkit==2024.3.6
+      # reproduction.ipynb runs in this environment
+      - notebook
+      - jupyter
       - easydict==1.13
       - tensorboard==2.9.0
       - protobuf<=3.20.3

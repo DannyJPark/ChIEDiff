@@ -32,6 +32,22 @@ DEFAULT_CONFIG = ROOT / 'configs' / 'posebusters_dock_1thread.yml'
 OUT_SUB = 'posebusters'
 
 
+def default_bust():
+    """The bust that belongs to the interpreter running this script.
+
+    The driver calls this script with the posebusters environment's python without putting
+    that environment's bin on PATH, so looking bust up on PATH finds nothing. $BUST wins if
+    it is set.
+    """
+    env = os.environ.get("BUST")
+    if env:
+        return env
+    beside = Path(sys.executable).with_name("bust")
+    if beside.is_file():
+        return str(beside)
+    return shutil.which("bust") or "bust"
+
+
 def resolve(path):
     """manifest.csv stores receptor paths relative to wherever the export ran, so both the
     current directory and the repository root are accepted. None means neither exists, so one
@@ -152,7 +168,7 @@ def evaluate(base, bust, config, workers, timeout, pockets=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dir', required=True, help='eval_out/<model> (holds manifest.csv and sdf/)')
-    ap.add_argument('--bust', default=os.environ.get('BUST') or shutil.which('bust') or 'bust',
+    ap.add_argument('--bust', default=default_bust(),
                     help='the posebusters CLI; must come from the posebusters environment')
     ap.add_argument('--config', default=str(DEFAULT_CONFIG))
     ap.add_argument('--workers', type=int,

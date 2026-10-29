@@ -47,7 +47,7 @@ from the generated molecules.
 
 ```bash
 python bin/train.py --config configs/train.yml --tag myrun
-python bin/train.py --config configs/train.yml --tag myrun --resume logs_diffusion/train_myrun
+python bin/train.py --config configs/train.yml --tag myrun --resume logs_diffusion/<run dir>
 ```
 
 The released checkpoint is iteration 1,195,000, batch size 2 with 2 accumulation steps, about

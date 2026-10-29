@@ -24,7 +24,7 @@ the check.
 | `gated_energy_diffusion/utils/evaluation/{analyze,atom_num,atom_num_config,eval_atom_type,eval_bond_length,eval_bond_length_config,scoring_func}.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
 | `gated_energy_diffusion/utils/evaluation/sascorer.py`, `fpscores.pkl.gz` | RDKit Contrib `SA_Score` | **BSD-3-Clause**, Copyright (c) 2013 Novartis | header at `sascorer.py` end; `fpscores.pkl.gz` is byte-identical to RDKit's |
 | `scripts/data_preparation/clean_crossdocked.py` | [TargetDiff](https://github.com/guanjq/targetdiff) | MIT, Copyright (c) 2023 Jiaqi Guan | upstream `LICIENCE` |
-| `configs/posebusters_dock_1thread.yml` | [PoseBusters](https://github.com/maabuu/posebusters) 0.6.5 `config/dock.yml`, with `num_threads: 1` | **BSD-3-Clause** | upstream `LICENSE` |
+| `configs/posebusters_dock_1thread.yml` | [PoseBusters](https://github.com/maabuu/posebusters) 0.6.5 `config/dock.yml`, with `num_threads: 1` | MIT, Copyright (c) 2025 Martin Buttenschoen | upstream `LICENSE` |
 | `bin/train.py`, `bin/sample.py` | entry points, partly derived from TargetDiff's | MIT | — |
 | `data/crossdocked_pocket10_pose_split.pt` | the train/test split published with [TargetDiff](https://github.com/guanjq/targetdiff), over [CrossDocked2020](https://bits.csb.pitt.edu/files/crossdock2020/) | split MIT (TargetDiff); underlying data **CC0 1.0** | upstream `LICIENCE`; dataset `LICENSE` |
 | `data/test_pocket_order.json` | the ligand filenames of that split's test subset, in split order | as the split above | derived here from the split |
@@ -73,7 +73,7 @@ value changed.
 | PLIP | 3.0.0 | GPL-2.0 |
 | PoseCheck | 1.3.1 | MIT |
 | ProLIF | 2.2.0 | Apache-2.0 |
-| PoseBusters | 0.6.5 | BSD-3-Clause |
+| PoseBusters | 0.6.5 | MIT |
 | RDKit | 2024.03.6 / 2026.03.3 / 2026.03.4 | BSD-3-Clause |
 | Open Babel | 3.1.1 | GPL-2.0 |
 
