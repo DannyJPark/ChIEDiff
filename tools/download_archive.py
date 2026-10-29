@@ -128,6 +128,14 @@ def download(url: str, dest: Path, size: int | None, give_up_after: int = 6) -> 
     tmp.replace(dest)
 
 
+def shown(path: Path) -> str:
+    """The path relative to the repository when it is inside it, else as given."""
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def unpack(out: Path) -> None:
     """Extract the archive's tarballs where the pipeline expects to find them.
 
@@ -159,11 +167,11 @@ def unpack(out: Path) -> None:
                 members.append(m)
             if all((dest / m.name).is_file() and (dest / m.name).stat().st_size == m.size
                    for m in members if m.isfile()):
-                print(f"  {name}: already extracted in {dest.relative_to(ROOT)}")
+                print(f"  {name}: already extracted in {shown(dest)}")
                 continue
             dest.mkdir(parents=True, exist_ok=True)
             print(f"  {name}: extracting {len(members)} members to "
-                  f"{dest.relative_to(ROOT)}")
+                  f"{shown(dest)}")
             # the 'data' filter where this Python has it, which also silences the warning
             # Python 3.12+ and patched 3.9 builds print without one
             kw = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
@@ -187,7 +195,7 @@ def main() -> int:
             print(f"  {f.get('size', 0) / 1e6:8.1f} MB  {f.get('key')}")
         return 0
 
-    out = Path(args.out)
+    out = Path(args.out).resolve()
     wanted = [f for f in files if not args.only or f.get("key") in args.only]
     if args.only and len(wanted) != len(args.only):
         missing = set(args.only) - {f.get("key") for f in files}
