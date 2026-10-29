@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -55,32 +57,74 @@ def fetch_metadata(rid: str) -> dict:
         sys.exit(f"cannot reach Zenodo: {e.reason}")
 
 
-def sha256(path: Path) -> str:
-    h = hashlib.sha256()
+def file_hash(path: Path, algo: str) -> str:
+    h = hashlib.new(algo)
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
 
 
-def download(url: str, dest: Path, size: int | None) -> None:
+def present(dest: Path, f: dict) -> bool:
+    """True when dest is the record's file: same size and, when the record gives one, the same
+    checksum. A file left from an earlier version of the record has the same name and often the
+    same size, so the size alone is not enough."""
+    if not dest.is_file() or not f.get("size") or dest.stat().st_size != f["size"]:
+        return False
+    algo, _, value = (f.get("checksum") or "").partition(":")
+    return not value or file_hash(dest, algo) == value
+
+
+def download(url: str, dest: Path, size: int | None, give_up_after: int = 6) -> None:
+    """Download to dest.part and resume it with a Range request whenever the connection drops,
+    so an interrupted run, or a re-run, carries on from where it stopped. Gives up after
+    give_up_after attempts in a row that add nothing, leaving the .part for the next run."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
-    done = 0
-    with urllib.request.urlopen(url, timeout=120) as r, tmp.open("wb") as out:
-        while True:
-            chunk = r.read(1 << 20)
-            if not chunk:
-                break
-            out.write(chunk)
-            done += len(chunk)
-            if size:
-                pct = 100.0 * done / size
-                print(f"\r    {done / 1e6:7.1f} / {size / 1e6:.1f} MB  {pct:5.1f}%",
-                      end="", flush=True)
-            else:
-                print(f"\r    {done / 1e6:7.1f} MB", end="", flush=True)
+    stalled = 0
+    while stalled < give_up_after:
+        have = tmp.stat().st_size if tmp.is_file() else 0
+        if size and have >= size:
+            break
+        start = have
+        req = urllib.request.Request(url)
+        if have:
+            req.add_header("Range", f"bytes={have}-")
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                if have and r.status != 206:
+                    have = 0                          # the server sent the whole file again
+                with tmp.open("ab" if have else "wb") as out:
+                    while True:
+                        chunk = r.read(1 << 20)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                        have += len(chunk)
+                        if size:
+                            pct = 100.0 * have / size
+                            print(f"\r    {have / 1e6:7.1f} / {size / 1e6:.1f} MB  {pct:5.1f}%",
+                                  end="", flush=True)
+                        else:
+                            print(f"\r    {have / 1e6:7.1f} MB", end="", flush=True)
+        except urllib.error.HTTPError as e:
+            if e.code not in (408, 429) and e.code < 500:
+                sys.exit(f"\n{dest.name}: HTTP {e.code} from Zenodo")
+            print(f"\n    HTTP {e.code} at {have / 1e6:.1f} MB, retrying", flush=True)
+        except (OSError, http.client.HTTPException) as e:
+            print(f"\n    connection lost at {have / 1e6:.1f} MB ({type(e).__name__}), resuming",
+                  flush=True)
+        else:
+            if size and have < size:
+                print(f"\n    connection closed at {have / 1e6:.1f} MB, resuming", flush=True)
+        if not size or have >= size:
+            break
+        stalled = 0 if have > start else stalled + 1
+        time.sleep(min(60, 5 * (stalled + 1)))
     print()
+    got = tmp.stat().st_size if tmp.is_file() else 0
+    if size and got != size:
+        sys.exit(f"{dest.name}: {got} of {size} bytes so far. Re-run the same command to resume.")
     tmp.replace(dest)
 
 
@@ -90,29 +134,20 @@ def unpack(out: Path) -> None:
     The receptors go to data/, because every worker resolves a manifest path relative to
     the repository root, and the measurements stay beside the archive.
 
-    Whether to skip is decided on the directories the tarball itself creates, not on the
-    destination. data/ always holds tracked files in any clone, so testing it would skip
-    the extraction every time and leave the receptors packed.
+    A tarball is skipped only when every file in it is already in place with its size, so a
+    tarball from a newer version of the record is extracted over an older one.
 
     A member with an absolute path, a parent reference or a link is refused rather than
     written.
     """
     import tarfile
 
-    # name -> (destination, the directories the tarball is expected to create under it)
-    targets = {"chiediff_receptors.tar.gz": (ROOT / "data",
-                                             ("test_set", "test_set_chainfix")),
-               "chiediff_measurements.tar.gz": (out / "measurements", ())}
-    for name, (dest, created) in targets.items():
+    targets = {"chiediff_receptors.tar.gz": ROOT / "data",
+               "chiediff_measurements.tar.gz": out / "measurements"}
+    for name, dest in targets.items():
         src = out / name
         if not src.is_file():
             continue
-        probes = [dest / c for c in created] or [dest]
-        if all(p.is_dir() and any(p.iterdir()) for p in probes):
-            have = ", ".join(str(p.relative_to(ROOT)) for p in probes)
-            print(f"  {name}: {have} already populated, not extracting")
-            continue
-        dest.mkdir(parents=True, exist_ok=True)
         with tarfile.open(src) as tar:
             members = []
             for m in tar.getmembers():
@@ -122,9 +157,17 @@ def unpack(out: Path) -> None:
                 if m.issym() or m.islnk():
                     sys.exit(f"{name} contains a link, which is not expected: {m.name}")
                 members.append(m)
+            if all((dest / m.name).is_file() and (dest / m.name).stat().st_size == m.size
+                   for m in members if m.isfile()):
+                print(f"  {name}: already extracted in {dest.relative_to(ROOT)}")
+                continue
+            dest.mkdir(parents=True, exist_ok=True)
             print(f"  {name}: extracting {len(members)} members to "
                   f"{dest.relative_to(ROOT)}")
-            tar.extractall(dest, members=members)
+            # the 'data' filter where this Python has it, which also silences the warning
+            # Python 3.12+ and patched 3.9 builds print without one
+            kw = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
+            tar.extractall(dest, members=members, **kw)
 
 
 def main() -> int:
@@ -157,7 +200,7 @@ def main() -> int:
         if not link:
             print(f"  {key}: no download link in the record metadata; skipped")
             continue
-        if dest.is_file() and f.get("size") and dest.stat().st_size == f["size"]:
+        if present(dest, f):
             print(f"  {key}: already present, skipping")
             continue
         print(f"  {key}")
@@ -179,7 +222,7 @@ def main() -> int:
             if not target.is_file():
                 continue
             checked += 1
-            got = sha256(target)
+            got = file_hash(target, "sha256")
             state = "OK" if got == digest.strip() else "MISMATCH"
             print(f"  {state:8s} {name.strip()}")
             if state != "OK":
