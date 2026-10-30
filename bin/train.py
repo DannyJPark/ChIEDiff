@@ -219,7 +219,6 @@ def main():
             f"Unsupported dataset: {config.data.name!r}. Only the CrossDocked2020 'pl' dataset "
             f"is supported.")
     # The shipped split has val=0 and test=100, so the trainer validates on the test subset.
-    # Checkpoint selection is therefore not independent of the evaluation pockets.
     train_set, val_set, test_set = subsets['train'], subsets['test'], []
 
     logger.info(f'Training: {len(train_set)} Validation: {len(val_set)} Test: {len(test_set)}')

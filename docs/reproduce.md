@@ -56,9 +56,8 @@ key order, so use that file rather than rebuilding one.
 
 `--save_freq` defaults to the config's `val_freq` (1000), so a run shorter than that leaves
 only the iteration-0 checkpoint without it.
-The split's validation subset is empty and the trainer validates on the test subset; leave it
-as it is, since the released weights were trained that way. The chemistry gates are
-mandatory: without the per-atom XS flags the run fails with an assertion.
+The chemistry gates are mandatory: without the per-atom XS flags the run fails with an
+assertion.
 
 ### Sampling
 
