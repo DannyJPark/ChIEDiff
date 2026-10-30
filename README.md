@@ -43,9 +43,9 @@ See [`data/README.md`](data/README.md).
 jupyter notebook reproduction.ipynb
 ```
 
-Section 1 prints the summary CSVs in `results/` that the tables are built from. Section 2
-recomputes this work's cohort counts, properties, ring sizes, Vina medians and diversity from
-the generated molecules.
+The notebook prints every table in the paper from the summary CSVs in `results/`, with the
+paper's rows, columns and rounding. Its last section, Metrics Summary, recomputes this work's
+cohort counts, properties, ring sizes and Vina scores from the generated molecules.
 
 ## Training
 

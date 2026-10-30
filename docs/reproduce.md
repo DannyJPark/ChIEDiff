@@ -8,7 +8,7 @@ One workstation with one GPU.
 jupyter notebook reproduction.ipynb
 ```
 
-Minutes, CPU, no downloads. Section 2 additionally needs the archive.
+Minutes, CPU, no downloads. The Metrics Summary section additionally needs the archive.
 
 ## Re-measuring from the molecules
 

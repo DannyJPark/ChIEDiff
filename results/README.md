@@ -67,4 +67,5 @@ Each file aggregates one cohort:
                  -> 8,338 with complete scoring -> 8,069 in the strict pose cohort
 ```
 
-Each table states its own n, and `reproduction.ipynb` prints it alongside each number.
+Each table states its own n, and `reproduction.ipynb` prints them all in the table of measured
+molecules by cohort.
