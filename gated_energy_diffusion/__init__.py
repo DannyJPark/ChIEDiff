@@ -1,6 +1,6 @@
 """Chemistry-gated interaction-energy diffusion for structure-based 3D molecular generation."""
 
 MODEL_NAME = "ChIEDiff"
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 
 __all__ = ["MODEL_NAME", "__version__"]
