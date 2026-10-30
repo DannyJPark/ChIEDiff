@@ -46,6 +46,8 @@ dependencies:
   - scipy=1.7.3
   - scikit-learn
   - matplotlib
+  # torch 1.11's TensorBoard add_figure calls Image.ANTIALIAS, which Pillow 10 removed.
+  - pillow<10
   - seaborn
 
   # --- io / config ------------------------------------------------------------
