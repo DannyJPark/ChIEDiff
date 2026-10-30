@@ -5,7 +5,6 @@ kgdiff,KGDiff,kgdiff,core,table2_strict,8278,97.55,0.1962,0.0,99.7,99.3,100.0,96
 molcraft,MolCRAFT,molcraft,extended,table2_strict,9657,96.19,0.2081,0.0,99.19,99.02,100.0,94.59,100.0
 reference,Reference (native),native,reference,table2_strict,100,98.0,0.05,0.0,100.0,100.0,100.0,98.0,100.0
 novdw,Ours (Guide Only),novdw,ablation,table2_strict,1920,97.24,0.1755,0.0,99.32,99.38,100.0,95.99,100.0
-pidiff_pub,PIDiff,pidiff,core,table2_strict,831,97.23,0.1625,0.0,99.28,99.76,100.0,96.39,100.0
 pidiff_retrain,PIDiff (retrained),pidiff_retrain,core,table2_strict,8469,97.87,0.1877,0.0,99.14,99.62,100.0,96.67,100.0
 pocket2mol,Pocket2Mol,pocket2mol,core,table2_strict,9801,82.51,0.2458,0.0,99.85,99.9,100.0,82.29,100.0
 targetdiff,TargetDiff,targetdiff,core,table2_strict,8954,87.4,0.3844,0.0,99.31,99.06,100.0,86.36,100.0
