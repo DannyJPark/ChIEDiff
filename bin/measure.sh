@@ -135,7 +135,7 @@ have "$KG" && $KG scripts/pose_rmsd.py --dir "$OUT" --jobs "$WORKERS" \
     || echo "  RMSD step skipped or failed; continuing"
 
 # ---- 4. interactions and physical validity ----------------------------------------
-step "PoseCheck clashes and UFF strain, and ProLIF fingerprints"
+step "PoseCheck clashes and UFF strain, ProLIF fingerprints, and heavy-atom clashes"
 echo "  Absolute interpreter path on purpose: this environment's RDKit must not shadow the"
 echo "  training environment's. ProLIF must be 2.2.0; see envs/README.md."
 if have "$PC"; then
@@ -145,6 +145,8 @@ if have "$PC"; then
         $PC scripts/eval_prolif_counts.py --dir "$OUT" --pocket "$p" --workers "$WORKERS" \
             || echo "  ProLIF pocket $p failed; continuing"
     done
+    $PC scripts/eval_heavy_clash.py --dir "$OUT" --pockets $PK_LIST \
+        || echo "  heavy-atom clash step failed; continuing"
 fi
 
 step "PoseBusters validity, one process per molecule"

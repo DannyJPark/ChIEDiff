@@ -34,7 +34,7 @@ a newer glibc than many cluster images carry.
 | Vina score, box fitted to the molecule | `vina_genbox_score.py` | `eval_out/<tag>/vina_genbox/` |
 | SMINA, Vinardo, GNINA score, minimize, dock | `dock_engines.py` | `eval_out/<tag>/{smina,smina_vinardo,gnina}/` |
 | pose RMSD | `pose_rmsd.py` | `eval_out/<tag>/pose_rmsd.csv` |
-| PoseCheck, ProLIF | `eval_posecheck.py`, `eval_prolif_counts.py` | `eval_out/<tag>/{posecheck,prolif_counts}/` |
+| PoseCheck, ProLIF, heavy-atom clashes | `eval_posecheck.py`, `eval_prolif_counts.py`, `eval_heavy_clash.py` | `eval_out/<tag>/{posecheck,prolif_counts,heavy_clash}/` |
 | PoseBusters | `eval_posebusters.py`, `eval_pb_distance.py` | `eval_out/<tag>/{posebusters,pb_distance}/` |
 | PLIP | `plip_interactions.py` | `eval_plip/<tag>/` |
 | strain, properties | `strain_energy.py`, `chem_props.py` | `eval_out/<tag>/` |

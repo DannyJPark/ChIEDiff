@@ -20,7 +20,7 @@ PoseBusters and PoseCheck carry two different RDKits and both contribute cells t
 | `group_samples.py`, `eval_export_sdf.py`, `dock_engines.py`, `vina_genbox_score.py`, `pose_rmsd.py`, `strain_energy.py`, `chem_props.py` | `ged-train` |
 | PLIP (`plip_interactions.py`) | `ged-train`, where PLIP 3.0.0 lives |
 | `vina_meeko_dock.py`, `self_redock.py` | `ged-vina` |
-| `eval_posecheck.py`, `eval_prolif_counts.py` | `ged-posecheck` |
+| `eval_posecheck.py`, `eval_prolif_counts.py`, `eval_heavy_clash.py` | `ged-posecheck` |
 | `eval_posebusters.py`, `eval_pb_distance.py` | `ged-posebusters` |
 
 SMINA and GNINA are external binaries on `PATH`, or named by `$SMINA` and `$GNINA`.
