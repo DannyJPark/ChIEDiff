@@ -1,5 +1,10 @@
 # ChIEDiff: chemistry-gated interaction-energy diffusion for structure-based 3D molecular generation
 
+<p align="center">
+  <img src="docs/assets/sampling_trajectory.gif" width="640"
+       alt="ChIEDiff sampling one molecule in a test pocket, from noise at T = 1000 to the generated molecule">
+</p>
+
 A pocket-conditioned 3D diffusion model that adds a chemistry-gated, Vina-derived
 intermolecular energy to the training objective and steers sampling with a learned
 affinity-head gradient.
