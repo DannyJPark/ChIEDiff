@@ -1,6 +1,6 @@
 # ChIEDiff: chemistry-gated interaction-energy diffusion for structure-based 3D molecular generation
 
-[Project overview](https://dannyjpark.github.io/research/chiediff/) ? [Reproduction notebook](reproduction.ipynb) ? [Data and weights](https://doi.org/10.5281/zenodo.23029438)
+[Project overview](https://dannyjpark.github.io/research/chiediff/) · [Reproduction notebook](reproduction.ipynb) · [Data and weights](https://doi.org/10.5281/zenodo.23029438)
 
 Manuscript submitted to Journal of Cheminformatics, October 2026.
 
